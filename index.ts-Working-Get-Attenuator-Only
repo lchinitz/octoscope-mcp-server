@@ -1,0 +1,205 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+// ── Configuration ─────────────────────────────────────────────────────────────
+
+//const OCTOBOX_BASE_URL = process.env.OCTOBOX_BASE_URL ?? "http://localhost:8080";
+const OCTOBOX_BASE_URL = process.env.OCTOBOX_BASE_URL ?? "http://10.160.81.81:4000";
+
+// ── API client ────────────────────────────────────────────────────────────────
+
+interface AttenuatorChannel {
+  channel: number;
+  attenuation: number;
+  [key: string]: unknown;
+}
+
+interface AttenuatorDevice {
+  managementAddr: string;
+  channels?: AttenuatorChannel[];
+  [key: string]: unknown;
+}
+
+type AttenuatorsResponse = AttenuatorDevice[] | Record<string, unknown>;
+
+async function fetchAttenuators(
+  managementAddrList?: string
+): Promise<AttenuatorsResponse> {
+  const url = new URL(`${OCTOBOX_BASE_URL}/api/v1/attenuators`);
+  if (managementAddrList) {
+    url.searchParams.set("managementAddrList", managementAddrList);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "(no body)");
+    throw new Error(
+      `octoScope API error ${response.status} ${response.statusText}: ${body}`
+    );
+  }
+
+  return response.json() as Promise<AttenuatorsResponse>;
+}
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+function formatAsMarkdown(data: AttenuatorsResponse): string {
+  if (!Array.isArray(data)) {
+    return "```json\n" + JSON.stringify(data, null, 2) + "\n```";
+  }
+
+  if (data.length === 0) {
+    return "No attenuators found.";
+  }
+
+  const lines: string[] = [];
+  for (const device of data as AttenuatorDevice[]) {
+    lines.push(`### Attenuator: \`${device.managementAddr ?? "unknown"}\``);
+    if (Array.isArray(device.channels) && device.channels.length > 0) {
+      lines.push("| Channel | Attenuation (dB) |");
+      lines.push("|---------|-----------------|");
+      for (const ch of device.channels) {
+        lines.push(`| ${ch.channel} | ${ch.attenuation} |`);
+      }
+    } else {
+      // Surface any remaining fields as a simple key-value list
+      const extra = Object.entries(device).filter(
+        ([k]) => k !== "managementAddr" && k !== "channels"
+      );
+      if (extra.length > 0) {
+        lines.push(
+          extra.map(([k, v]) => `- **${k}**: ${JSON.stringify(v)}`).join("\n")
+        );
+      }
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+// ── Input schema ──────────────────────────────────────────────────────────────
+
+const GetAttenuatorsInputSchema = z
+  .object({
+    managementAddrList: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated list of attenuator IP addresses to query " +
+          "(e.g. '192.168.1.10,192.168.1.11'). " +
+          "Omit to retrieve all attenuators known to the octoScope system."
+      ),
+    response_format: z
+      .enum(["markdown", "json"])
+      .default("markdown")
+      .describe(
+        "'markdown' returns a human-readable table; " +
+          "'json' returns the raw API payload."
+      ),
+  })
+  .strict();
+
+type GetAttenuatorsInput = z.infer<typeof GetAttenuatorsInputSchema>;
+
+// ── MCP server ────────────────────────────────────────────────────────────────
+
+const server = new McpServer({
+  name: "octobox-mcp-server",
+  version: "1.0.0",
+});
+
+server.registerTool(
+  "octobox_get_attenuators",
+  {
+    title: "Get Attenuator Values",
+    description: `Retrieve current attenuation values from one or more octoScope attenuator devices.
+
+Calls GET /api/v1/attenuators on the octoScope REST API and returns the per-channel
+attenuation (in dB) reported by each device.
+
+Args:
+  - managementAddrList (string, optional): Comma-separated IP addresses of the
+    attenuator(s) to query. Examples: '192.168.1.10' or '192.168.1.10,192.168.1.11'.
+    If omitted, all attenuators registered in the system are returned.
+  - response_format ('markdown' | 'json', default 'markdown'):
+      - 'markdown': formatted table, best for reading in chat
+      - 'json': raw API response, best for downstream processing
+
+Returns:
+  Array of attenuator device objects, each containing:
+    {
+      "managementAddr": string,   // Device IP address
+      "channels": [
+        {
+          "channel": number,       // Channel index
+          "attenuation": number    // Current attenuation in dB
+        }
+      ]
+    }
+
+Examples:
+  - "What are the current attenuation values?" → omit managementAddrList
+  - "Check attenuation on 192.168.1.10" → managementAddrList: "192.168.1.10"
+  - "Compare attenuation on two devices" → managementAddrList: "192.168.1.10,192.168.1.11"
+
+Error handling:
+  - Returns an error message if the octoScope server is unreachable (check OCTOBOX_BASE_URL)
+  - Returns "No attenuators found" when the query returns an empty list
+  - 400/500 status codes from the API are surfaced with the server's error message`,
+
+    inputSchema: GetAttenuatorsInputSchema,
+
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  async (params: GetAttenuatorsInput) => {
+    try {
+      const data = await fetchAttenuators(params.managementAddrList);
+
+      if (params.response_format === "json") {
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+          structuredContent: { attenuators: data },
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: formatAsMarkdown(data) }],
+        structuredContent: { attenuators: data },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error fetching attenuators: ${message}\n\nEnsure OCTOBOX_BASE_URL is set correctly (current: ${OCTOBOX_BASE_URL}).`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ── Transport ─────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("octobox-mcp-server running (stdio)");
+}
+
+main().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});

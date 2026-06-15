@@ -1,0 +1,1859 @@
+{
+    "_editable": false,
+    "_WARNING": "This file is for script author reference and debug only. It is not used in script execution.",
+    "paramsFileType": {
+        "val": "system",
+        "label": "Params file type [system|test|limits]"
+    },
+    "blockNormal": {
+        "setDetailLevel": 1,
+        "setReadOnly": false
+    },
+    "dut": {
+        "label": "DUT parameters. **NOTE** EDIT to match device under test.",
+        "val": {
+            "dutModel": "DUTMODEL",
+            "dutId": "DUTID",
+            "dutRevision": "Vx-x",
+            "apnum": 3,
+            "dut_mgmtip": "192.168.x.x",
+            "dut_subnet": "255.255.0.0",
+            "dutssid24": "SSID",
+            "dutpass24": "1111111111",
+            "dutsecurity24": "SECURITY_WPA2",
+            "dutssid5": "SSID",
+            "dutpass5": "1111111111",
+            "dutsecurity5": "SECURITY_WPA2",
+            "dutssid5_2": "SSID",
+            "dutpass5_2": "1111111111",
+            "dutsecurity5_2": "SECURITY_WPA2",
+            "dutssid6": "SSID",
+            "dutpass6": "1111111111",
+            "dutsecurity6": "SECURITY_WPA3"
+        }
+    },
+    "debug": {
+        "val": false,
+        "label": "Set true to enable extra debug info for some tests"
+    },
+    "oBox_server": {
+        "label": "octoBox Server params. **NOTE** EDIT publicip to equal the IP address of your octobox system.",
+        "val": {
+            "publicip": "",
+            "address": "172.16.22.4",
+            "defaultIp": "192.168.15.4"
+        }
+    },
+    "stackTypeOverride": {
+        "val": "",
+        "label": "This value overrides the systemConfig stackType value when looking up box-to-box path info in pathinfo.json. Leave it blank to use the value in systemConfig. **IMPORTANT** The value must be a valid dictionary in pathinfo.json. This should be used only if a system has a non-standard attenuator configuration."
+    },
+    "autotest_timeout_factor": {
+        "val": 1.8,
+        "label": "Calculated step duration is multipled by this to set test timeout check."
+    },
+    "rest_timeout": {
+        "val": 120,
+        "label": "Maximum wait for REST API call to respond. Integer seconds."
+    },
+    "retryRequests": {
+        "val": false,
+        "label": "Set true to retry makeArequest requests."
+    },
+    "skipIgenCheck": {
+        "val": true,
+        "label": "Set true to skip checking & resetting iGen."
+    },
+    "blockHide": {
+        "setDetailLevel": 2,
+        "setReadOnly": false
+    },
+    "WAITPARAMETERS": {
+        "val": "*****************************************",
+        "label": "THESE ARE USED BY MANY SCRIPTS, SO BE CAREFUL WHEN CHANGING."
+    },
+    "meshSetupTime": {
+        "val": 5,
+        "label": "Wait time after initializing mesh backhaul attenuators for mesh to establish"
+    },
+    "defaultSettlingTime": {
+        "val": 5,
+        "label": "Time to wait before making measurement(sec) [integer]"
+    },
+    "delay_after_capture_stop": {
+        "val": 5,
+        "label": "Time (seconds) to wait after stopping sniffer capture."
+    },
+    "ping_wait_time_seconds": {
+        "val": 5,
+        "label": "Wait seconds for ping to succeed"
+    },
+    "delay_before_traffic_seconds": {
+        "val": 5,
+        "label": "Wait seconds before traffic start"
+    },
+    "delay_before_test_status_check": {
+        "val": 3,
+        "label": "Wait seconds before checking test  status"
+    },
+    "atten_change_delay_seconds": {
+        "val": 1,
+        "label": "Wait seconds after attenuator change"
+    },
+    "avgData_delay_seconds": {
+        "val": 3,
+        "label": "Wait seconds before calling avgData API"
+    },
+    "blockLock": {
+        "setDetailLevel": 5,
+        "setReadOnly": true
+    },
+    "SCRIPT_AUTOCONFIGURE_PARAMETERS": {
+        "val": "*****************************************",
+        "label": "THESE PARAMETERS CONTROL HOW SCRIPTS SELF CONFIGURE FOR DIFFERENT STACKS."
+    },
+    "funcsCanTerminate": {
+        "val": true,
+        "label": "Set true to allow sd2Utils functions to terminate script on error."
+    },
+    "useHelper": {
+        "val": false,
+        "label": "Set true to have script(s) use Helper file."
+    },
+    "useDutMap": {
+        "val": false,
+        "label": "Set true to have script(s) use dutMap.json."
+    },
+    "usePathInfo": {
+        "val": false,
+        "label": "Set true to have script(s) use pathinfo.json."
+    },
+    "softwareVersionRequired": {
+        "val": "2.8.0-6",
+        "label": "Minimum system software version required."
+    },
+    "sd2UtilsVersionRequired": {
+        "val": "20241008",
+        "label": "Minimum sd2Utils version required."
+    },
+    "scriptSuiteVersion": {
+        "val": "",
+        "label": "Script suite version."
+    },
+    "FILE-LOCATION_N_PATH_PARAMETERS": {
+        "val": "*****************************************",
+        "label": "CHANGE ONLY IF YOU KNOW WHAT YOU ARE DOING AND FILES ARE MOVED FROM THESE LOCATIONS."
+    },
+    "dutMapPath": {
+        "val": "../dutMap.json",
+        "label": "Path to dutMap.json file."
+    },
+    "meshinfoPath": {
+        "val": "../",
+        "label": "Path to meshinfo.json file."
+    },
+    "calfilePath": {
+        "val": "/octoscope/scriptMachine/script-home/common/calibration/",
+        "label": "Path to calfile.json file."
+    },
+    "80211_keysFilePath": {
+        "val": "/home/octoscope/.config/wireshark/80211_keys",
+        "label": "Path to 80211_keys file for wireshark."
+    },
+    "expertAnalysis_server": {
+        "label": "Expert Analysis server params",
+        "val": {
+            "dirpath": "/octoscope/analytics",
+            "filename": "expertAnalysisServer.js",
+            "address": "localhost",
+            "mgmtport": "8080"
+        }
+    },
+    "eaLocation": {
+        "val": [
+            {
+                "value": "remote",
+                "display": "Remote",
+                "selected": false
+            },
+            {
+                "value": "local",
+                "display": "Local",
+                "selected": true
+            }
+        ],
+        "label": "Expert Analysis location (remote or local)",
+        "DOMtype": "dropdown"
+    },
+    "SnifferRelay_location": {
+        "label": "Sniffer node server path",
+        "val": {
+            "dirpath": "/octoscope/scriptMachine/script-home/common/",
+            "filename": "SnifferRelay.js"
+        }
+    },
+    "basicServer_location": {
+        "label": "Full path to basic-server directory on octobox server.",
+        "val": {
+            "dirpath": "/octoscope/scriptMachine/script-manager/basic-server/",
+            "filename": "basic-server.js",
+            "mgmtport": "8383"
+        }
+    },
+    "HOUSE_PROFILE_CONVERSION_PARAMETERS": {
+        "val": "*****************************************",
+        "label": "CHANGE ONLY IF YOU KNOW WHAT YOU ARE DOING."
+    },
+    "houseProfile_channel": {
+        "val": 44,
+        "label": "Channel for houseProfile rssi to attenuator conversion. (Default 44)"
+    },
+    "houseProfile_xmitPower": {
+        "val": 20,
+        "label": "DUT transmit powerfor houseProfile rssi to attenuator conversion. (Default 20)"
+    },
+    "PAL-STAPAL_PARAMETERS": {
+        "val": "*****************************************",
+        "label": "THESE VALUES ARE USED AS DEFAULT VALUES. CHANGE ONLY IF YOU KNOW WHAT YOU ARE DOING."
+    },
+    "pal6_STA": {
+        "label": "Pal6 STA default configuration.",
+        "val": {
+            "managementAddr": "SET_THIS",
+            "request": "Push",
+            "advRatesEnable": false,
+            "alias": "SET_THIS",
+            "apStaMode": "STA",
+            "bandConfig": "BAND_DUAL",
+            "bandwidth": "SET_THIS",
+            "beamformeeMUEnable": "SET_THIS_true_false",
+            "beamformeeSUEnable": "SET_THIS_true_false",
+            "beamformerMUEnable": false,
+            "beamformerSUEnable": false,
+            "bridgeEnable": false,
+            "bssid": "",
+            "bssidMode": "BSSID_UNKNOWN",
+            "interface_": "SET_THIS",
+            "ipAddress": "SET_THIS",
+            "ipGateway": "SET_THIS",
+            "ipMode": "IP_STATIC",
+            "ipNetmask": "255.255.0.0",
+            "ofdmaDLEnable": "SET_THIS_true_false",
+            "ofdmaULEnable": "SET_THIS_true_false",
+            "palRadio": "SET_THIS",
+            "password": "SET_THIS",
+            "primaryChannel": "SET_THIS",
+            "priority": "PRIORITY_BESTEFFORT",
+            "radioEnabled": true,
+            "rate": -1,
+            "roamTargetThreshold": -95,
+            "roamThreshold": -95,
+            "secondaryChannel_8080": 0,
+            "security": "SET_THIS",
+            "ssid": "SET_THIS",
+            "streams": 4,
+            "txAtten": 0,
+            "uApsdEnable": true,
+            "vEnable": false,
+            "vLogging": false,
+            "vstaCount": 1,
+            "vstaConfig": []
+        }
+    },
+    "pal7_STA": {
+        "label": "Pal7 STA default configuration",
+        "val": {
+            "apStaMode": "STA",
+            "managementAddr": "SET_THIS",
+            "alias": "SET_THIS",
+            "request": "Push",
+            "bandwidth": "SET_THIS",
+            "ipAddress": "SET_THIS",
+            "ipGateway": "SET_THIS",
+            "ipMode": "IP_STATIC",
+            "ipNetmask": "255.255.0.0",
+            "ipv6Mode": "IP_STATIC",
+            "ipv6ModeBridge": "IP_STATIC",
+            "ipv6PrefixLength": 64,
+            "ipv6PrefixLengthBridge": 64,
+            "primaryChannel": "SET_THIS",
+            "priority": "PRIORITY_BESTEFFORT",
+            "rate": -1,
+            "security": "SET_THIS",
+            "ssid": "SET_THIS",
+            "streams": 4,
+            "advRatesEnable": false,
+            "beamformeeMUEnable": "SET_THIS_true_false",
+            "beamformeeSUEnable": "SET_THIS_true_false",
+            "beamformerMUEnable": false,
+            "beamformerSUEnable": false,
+            "bridgeEnable": false,
+            "countryCode": "",
+            "ofdmaDLEnable": "SET_THIS_true_false",
+            "ofdmaULEnable": "SET_THIS_true_false",
+            "okcEnable": false,
+            "password": "SET_THIS",
+            "txAtten": 0,
+            "kEnable": false,
+            "kvrLoggingEnable": false,
+            "rFastTransitionEnable": false,
+            "rOvertheDSEnable": false,
+            "vEnable": false,
+            "mloMemberEnable": false,
+            "mloMemberIndex": 0,
+            "punctureChannels": "",
+            "palRadio": "SET_THIS",
+            "vstaCount": 1,
+            "bssid": "",
+            "bssidMode": "BSSID_UNKNOWN",
+            "certFilename": "",
+            "powerSaveEnable": false,
+            "radiusIdentity": "",
+            "radiusPassword": "",
+            "vstaConfig": [],
+            "radioEnabled": true,
+            "interface_": "SET_THIS",
+            "secondaryChannel_8080": 0
+        }
+    },
+    "STApal": {
+        "label": "STApal default configuration.",
+        "val": {
+            "managementAddr": "SET_THIS",
+            "request": "Push",
+            "advRatesEnable": false,
+            "alias": "",
+            "apStaMode": "STA",
+            "bandwidth": "SET_THIS",
+            "beamformeeMUEnable": true,
+            "beamformeeSUEnable": true,
+            "beamformerMUEnable": false,
+            "beamformerSUEnable": false,
+            "bridgeEnable": false,
+            "bssid": "",
+            "bssidMode": "BSSID_DISABLED",
+            "captureEnable": false,
+            "channelScanList": [],
+            "channelScanMode": false,
+            "ctsRtsThreshold": 0,
+            "dfsEnable": false,
+            "filterManagementOnly": false,
+            "filterHeadersOnly": false,
+            "fragmentationThreshold": 2346,
+            "guardInterval": "GUARD_0_4US",
+            "interface_": "SET_THIS",
+            "ipAddress": "SET_THIS",
+            "ipAddressBridge": "",
+            "ipGateway": "SET_THIS",
+            "ipGatewayBridge": "",
+            "ipMode": "IP_STATIC",
+            "ipModeBridge": "IP_STATIC",
+            "ipNetmask": "255.255.0.0",
+            "ipNetmaskBridge": "255.255.0.0",
+            "kEnable": false,
+            "kvrLoggingEnable": false,
+            "maxAMPDUFrameSize": "FRAME_UNKNOWN",
+            "netcatPort": 10000,
+            "ofdmaDLEnable": true,
+            "ofdmaULEnable": true,
+            "palRadio": "SET_THIS",
+            "powerSaveEnable": false,
+            "primaryChannel": "SET_THIS",
+            "priority": "PRIORITY_BESTEFFORT",
+            "probeID": "STApal-Probe",
+            "radioEnabled": true,
+            "rate": -1,
+            "rFastTransitionEnable": false,
+            "roamTargetThreshold": -95,
+            "roamThreshold": -95,
+            "rOvertheDSEnable": false,
+            "secondaryChannel_8080": 0,
+            "security": "SET_THIS",
+            "password": "SET_THIS",
+            "ssid": "SET_THIS",
+            "streams": 2,
+            "txAtten": 0,
+            "vEnable": false,
+            "vstaCount": 1,
+            "vstaConfig": []
+        }
+    },
+    "STApal7": {
+        "label": "STApal 7 default configuration.",
+        "val": {
+            "baseMacAddress": "SET_THIS",
+            "bandwidth": "SET_THIS",
+            "chainRXMask": 3,
+            "chainTXMask": 3,
+            "fragmentationThreshold": 2346,
+            "guardInterval": "GUARD_0_4US",
+            "interface_": "SET_THIS",
+            "ipAddress": "SET_THIS",
+            "ipAddressBridge": "",
+            "ipGateway": "SET_THIS",
+            "ipGatewayBridge": "",
+            "ipMode": "IP_STATIC",
+            "ipModeBridge": "IP_STATIC",
+            "ipNetmask": "255.255.0.0",
+            "ipNetmaskBridge": "255.255.0.0",
+            "ipv6Mode": "IP_STATIC",
+            "ipv6ModeBridge": "IP_STATIC",
+            "maxAMPDUFrameSize": "FRAME_65535",
+            "ofdmaDLEnable": true,
+            "ofdmaULEnable": true,
+            "primaryChannel": "SET_THIS",
+            "priority": "PRIORITY_BESTEFFORT",
+            "security": "SET_THIS",
+            "password": "SET_THIS",
+            "ssid": "SET_THIS",
+            "streams": 2,
+            "advRatesEnable": false,
+            "beamformeeMUEnable": false,
+            "beamformeeSUEnable": false,
+            "beamformerMUEnable": false,
+            "beamformerSUEnable": false,
+            "bridgeEnable": false,
+            "countryCode": "",
+            "ctsRtsThreshold": 0,
+            "dfsEnable": false,
+            "ipv6Address": "",
+            "ipv6PrefixLength": 0,
+            "ipv6Gateway": "",
+            "ipv6AddressBridge": "",
+            "ipv6PrefixLengthBridge": 0,
+            "ipv6GatewayBridge": "",
+            "okcEnable": false,
+            "rate": 0,
+            "secondaryChannel8080": 0,
+            "txAtten": 0,
+            "vBTMSmartMode": true,
+            "kEnable": false,
+            "kvrLoggingEnable": false,
+            "rFastTransitionEnable": false,
+            "rOvertheDSEnable": false,
+            "vEnable": false,
+            "mloMemberEnable": false,
+            "mloMemberIndex": 0,
+            "palRadio": "RADIO_2456",
+            "radioEnabled": true,
+            "bssidMode": "BSSID_DISABLED",
+            "channelScanList": [
+                0
+            ],
+            "roamTargetThreshold": -95,
+            "roamThreshold": -95,
+            "radiusIdentity": "username",
+            "radiusPassword": "password",
+            "bssid": "",
+            "certFilename": "",
+            "channelScanMode": false,
+            "obssScanEnable": false,
+            "powerSaveEnable": false,
+            "vstaCount": 0,
+            "netcatPort": 10011,
+            "apStaMode": "STA",
+            "managementAddr": "SET_THIS",
+            "alias": "stapal7"
+        }
+    },
+    "STApalSniffer": {
+        "label": "STApal sniffer default configuration",
+        "val": {
+            "palAddress": "SET_THIS",
+            "apStaMode": "SNIFFER",
+            "devType": "staPal",
+            "palRadio": "SET_THIS",
+            "bandwidth": "SET_THIS",
+            "chainMask": 255,
+            "filterHeadersOnly": true,
+            "filterManagementOnly": false,
+            "interface": "SET_THIS",
+            "netcatPort": 10011,
+            "primaryChannel": "SET_THIS",
+            "probeID": "SET_THIS",
+            "secondaryChannel_8080": 0,
+            "triggerOutMode": "TMODE_DISABLE",
+            "triggerOutPacketFilterMask": 0,
+            "radioEnabled": true,
+            "triggerOutScriptCmd": "python3/octoscope/delay_gpio.py"
+        }
+    },
+    "pal6_AP": {
+        "label": "Pal6 AP default configuration",
+        "val": {
+            "managementAddr": "SET_THIS",
+            "request": "Push",
+            "apStaMode": "AP",
+            "bandConfig": "BAND_DUAL",
+            "alias": "SET_THIS",
+            "beaconInterval": 0,
+            "probeID": "Pal6-Probe",
+            "captureEnable": false,
+            "filterExpression": "",
+            "filterHeadersOnly": false,
+            "filterManagementOnly": false,
+            "bandwidth": "SET_THIS",
+            "guardInterval": "GUARD_0_8US",
+            "bridgeEnable": true,
+            "ipAddress": "SET_THIS",
+            "ipNetmask": "255.255.0.0",
+            "ipMode": "IP_STATIC",
+            "ipGateway": "",
+            "ipAddressBridge": "SET_THIS",
+            "ipNetmaskBridge": "255.255.0.0",
+            "ipModeBridge": "IP_STATIC",
+            "ipGatewayBridge": "",
+            "primaryChannel": "SET_THIS",
+            "priority": "PRIORITY_BESTEFFORT",
+            "rate": -1,
+            "security": "SET_THIS",
+            "ssid": "SET_THIS",
+            "streams": 4,
+            "advRatesEnable": false,
+            "beamformeeMUEnable": false,
+            "beamformeeSUEnable": false,
+            "beamformerMUEnable": true,
+            "beamformerSUEnable": true,
+            "ctsRtsThreshold": 0,
+            "dfsEnable": false,
+            "ofdmaDLEnable": true,
+            "ofdmaULEnable": true,
+            "password": "SET_THIS",
+            "txAtten": 0,
+            "kEnable": false,
+            "kvrLoggingEnable": false,
+            "rFastTransitionEnable": false,
+            "rOvertheDSEnable": false,
+            "vEnable": false,
+            "palRadio": "SET_THIS",
+            "radioEnabled": true
+        }
+    },
+    "pal7_AP": {
+        "label": "Pal7 AP default configuration",
+        "val": {
+            "managementAddr": "SET_THIS",
+            "request": "Push",
+            "apStaMode": "AP",
+            "alias": "Pal-7A_24",
+            "vstaConfig": [],
+            "twtEnable": true,
+            "beaconInterval": 0,
+            "uApsdDtimInterval": 0,
+            "uApsdEnable": false,
+            "authServerIp": "",
+            "authServerPort": 0,
+            "authServerSecret": "",
+            "bandwidth": "SET_THIS",
+            "beamformerMUEnable": true,
+            "beamformerSUEnable": true,
+            "bridgeEnable": true,
+            "guardInterval": "GUARD_0_8US",
+            "ipAddress": "SET_THIS",
+            "ipMode": "IP_STATIC",
+            "ipNetmask": "255.255.0.0",
+            "ipAddressBridge": "SET_THIS",
+            "ipModeBridge": "IP_STATIC",
+            "ipNetmaskBridge": "255.255.0.0",
+            "ofdmaDLEnable": true,
+            "ofdmaULEnable": true,
+            "password": "SET_THIS",
+            "primaryChannel": "SET_THIS",
+            "priority": "PRIORITY_BESTEFFORT",
+            "rate": -1,
+            "security": "SET_THIS",
+            "ssid": "SET_THIS",
+            "streams": 4,
+            "advRatesEnable": false,
+            "beamformeeMUEnable": false,
+            "beamformeeSUEnable": false,
+            "countryCode": "",
+            "ctsRtsThreshold": 0,
+            "dfsEnable": false,
+            "maxAMPDUFrameSize": "FRAME_UNKNOWN",
+            "okcEnable": false,
+            "punctureChannels": "",
+            "punctureStrict": false,
+            "txAtten": 0,
+            "kEnable": false,
+            "kvrLoggingEnable": false,
+            "rFastTransitionEnable": false,
+            "rOvertheDSEnable": false,
+            "vEnable": false,
+            "mloMemberEnable": false,
+            "mloMemberIndex": 0,
+            "palRadio": "SET_THIS",
+            "radioEnabled": true,
+            "interface_": "SET_THIS"
+        }
+    },
+    "testName": {
+        "val": "simplest",
+        "label": "Test Name"
+    },
+    "testPrefix": {
+        "val": "simplest",
+        "label": "Prefix for CSV filenames"
+    },
+    "testDescription": {
+        "val": "Minimal params_test.json required for the simplest automated test.",
+        "label": "Test Description"
+    },
+    "TESTPARAMETERS": {
+        "val": "*****************************************",
+        "label": "TEST PARAMETERS SECTION"
+    },
+    "settlingTime": {
+        "val": 2,
+        "label": "Settling Time (seconds)"
+    },
+    "trainingInterval": {
+        "val": 5,
+        "label": "Time to wait before making measurement(sec) [integer]"
+    },
+    "step": {
+        "val": 2,
+        "label": "Quad attenuator step size (dB). Set = 1 for static attenution."
+    },
+    "stepDuration": {
+        "val": 10,
+        "label": "How long to spend at each attenuation step (seconds)."
+    },
+    "quadAttenStart": {
+        "val": 0,
+        "label": "Attenuation start"
+    },
+    "quadAttenStop": {
+        "val": 60,
+        "label": "Attenuation stop"
+    },
+    "INSTRUMENT SETUP": {
+        "val": "*****************************************",
+        "label": "INSTRUMENT SETUP"
+    },
+    "palToUse": {
+        "val": "Pal-7C",
+        "label": "Pal to Use"
+    },
+    "primaryChannel": {
+        "val": 227,
+        "label": "PrimaryChannel"
+    },
+    "band": {
+        "val": [
+            {
+                "value": "24g",
+                "display": "2.4 GHz",
+                "selected": false
+            },
+            {
+                "value": "5g",
+                "display": "5 GHz (A)",
+                "selected": false
+            },
+            {
+                "value": "5g_2",
+                "display": "5 GHz (B)",
+                "selected": false
+            },
+            {
+                "value": "6g",
+                "display": "6 GHz",
+                "selected": true
+            }
+        ],
+        "label": "Band of operation",
+        "DOMtype": "dropdown"
+    },
+    "bw": {
+        "val": [
+            {
+                "value": "BANDWIDTH_ADAPT",
+                "display": "Adapt",
+                "selected": false
+            },
+            {
+                "value": "BANDWIDTH_20_FIXED",
+                "display": "20 MHz",
+                "selected": false
+            },
+            {
+                "value": "BANDWIDTH_40_ADAPT",
+                "display": "40 MHz",
+                "selected": false
+            },
+            {
+                "value": "BANDWIDTH_80_ADAPT",
+                "display": "80 MHz",
+                "selected": true
+            },
+            {
+                "value": "BANDWIDTH_160_ADAPT",
+                "display": "160 MHz",
+                "selected": false
+            },
+            {
+                "value": "BANDWIDTH_320_ADAPT",
+                "display": "320 MHz",
+                "selected": false
+            }
+        ],
+        "label": "Channel bandwidth",
+        "DOMtype": "dropdown"
+    },
+    "iface": {
+        "val": [
+            {
+                "value": "INTERFACE_G",
+                "display": "802.11g",
+                "selected": false
+            },
+            {
+                "value": "INTERFACE_N",
+                "display": "802.11n (Wi-Fi 4)",
+                "selected": false
+            },
+            {
+                "value": "INTERFACE_AC",
+                "display": "802.11ac (Wi-Fi 5)",
+                "selected": false
+            },
+            {
+                "value": "INTERFACE_AX",
+                "display": "802.11ax (Wi-Fi 6)",
+                "selected": false
+            },
+            {
+                "value": "INTERFACE_BE",
+                "display": "802.11be (Wi-Fi 7)",
+                "selected": true
+            }
+        ],
+        "label": "802.11 protocol version",
+        "DOMtype": "dropdown"
+    },
+    "nss": {
+        "val": "4",
+        "label": "Number of spatial streams"
+    },
+    "attensToUse": {
+        "val": [
+            "MPE2-A",
+            "MPE2-B"
+        ],
+        "label": "List of attenuators to use"
+    },
+    "IPSTREAMDEFAULTS": {
+        "val": "*****************************************",
+        "label": "IP STREAM DEFAULTS"
+    },
+    "ulDl": {
+        "label": "Uplink or downlink traffic",
+        "DOMtype": "dropdown",
+        "val": [
+            {
+                "value": "up",
+                "display": "Uplink",
+                "selected": false
+            },
+            {
+                "value": "down",
+                "display": "Downlink",
+                "selected": true
+            }
+        ]
+    },
+    "iperfMode": {
+        "label": "iPerf Mode (tcp, udp)",
+        "val": "udp"
+    },
+    "trafficType": {
+        "val": "iperf2",
+        "label": "Traffic type to run [iperf2 | iperf3 | ping | None]"
+    },
+    "trafficBW": {
+        "val": "3000M",
+        "label": "Bit rate.  Use #K or #M, like 20M for 20 Mbps"
+    },
+    "parallel": {
+        "val": "4",
+        "label": "Parallel streams"
+    },
+    "window": {
+        "val": "4M",
+        "label": "Window size"
+    },
+    "length": {
+        "val": "",
+        "label": "Packet size, bytes"
+    },
+    "OTHERPARAMETERS": {
+        "val": "*****************************************",
+        "label": "ANY OTHER ITEM CONFIGURATION SECTION"
+    },
+    "totalTests": {
+        "val": 1,
+        "label": "Total number of tests to run.  It will run at least once, regardless of this value."
+    },
+    "usePalAsAP": {
+        "val": "",
+        "label": "Use this Pal as the AP. If blank, this is not done."
+    },
+    "palAPssid": {
+        "val": "palAsAP",
+        "label": "SSID for Pal as AP"
+    },
+    "palAPsecurity": {
+        "label": "Security mode for Pal as AP",
+        "val": [
+            {
+                "value": "SECURITY_NONE",
+                "display": "None",
+                "selected": true
+            },
+            {
+                "value": "SECURITY_WPA",
+                "display": "WPA",
+                "selected": false
+            },
+            {
+                "value": "SECURITY_WPA2",
+                "display": "WPA2",
+                "selected": false
+            },
+            {
+                "value": "SECURITY_WPA_WPA2_MIXED",
+                "display": "WPA/2",
+                "selected": false
+            },
+            {
+                "value": "SECURITY_WPA3",
+                "display": "WPA3",
+                "selected": false
+            },
+            {
+                "value": "SECURITY_WPA3_WPA2_MIXED",
+                "display": "WPA2/3",
+                "selected": false
+            }
+        ],
+        "DOMtype": "dropdown"
+    },
+    "palAPpassword": {
+        "val": "octoscope",
+        "label": "Security password for Pal as AP"
+    },
+    "palAPchannel": {
+        "val": 227,
+        "label": "Channel of operation for Pal as AP"
+    },
+    "topDirectory": "2026-06-12_11-09_DUTID",
+    "dateOfStart": "2026-06-12",
+    "timeOfStart": "11-09",
+    "subDirectory": "1_2026-06-12_11-09_simplest",
+    "commandLine": "L2C",
+    "title": "simplest",
+    "scriptManagerLocation": {},
+    "runFromScriptMachineFlag": false,
+    "smRunningFlag": false,
+    "Server": {
+        "val": {
+            "devName": "Server",
+            "address": "172.16.22.4",
+            "endpoints": {
+                "ETHERNET": {
+                    "defaultIpv6": [
+                        "fe80::7baf:6f4a:7c64:7f15",
+                        "2001:470:1f07:d5b::4"
+                    ],
+                    "defaultIp": "192.168.15.4",
+                    "color": "#000000",
+                    "defaultIpv6_": {
+                        "linkLocal": [
+                            "fe80::7baf:6f4a:7c64:7f15"
+                        ],
+                        "global": [
+                            "2001:470:1f07:d5b::4"
+                        ]
+                    }
+                },
+                "RADIO_24": {
+                    "defaultIpv6": []
+                },
+                "RADIO_5": {
+                    "defaultIpv6": []
+                },
+                "RADIO_5A": {
+                    "defaultIpv6": []
+                },
+                "RADIO_5B": {
+                    "defaultIpv6": []
+                },
+                "RADIO_6": {
+                    "defaultIpv6": []
+                },
+                "RADIO_245": {
+                    "defaultIpv6": []
+                },
+                "RADIO_2456": {
+                    "defaultIpv6": []
+                }
+            },
+            "devType": "server"
+        }
+    },
+    "Pal-6A": {
+        "val": {
+            "address": "172.16.27.1",
+            "devName": "Pal-6A",
+            "devType": "pal6",
+            "alias": "P6A",
+            "endpoints": {
+                "RADIO_24": {
+                    "defaultIp": "192.168.45.5",
+                    "color": "#e6194b"
+                },
+                "RADIO_5": {
+                    "defaultIp": "192.168.40.135",
+                    "color": "#3cb44b"
+                },
+                "RADIO_5A": {
+                    "defaultIp": "192.168.40.5",
+                    "color": "#c9c299"
+                },
+                "RADIO_5B": {
+                    "defaultIp": "192.168.40.70",
+                    "color": "#34495e"
+                }
+            },
+            "isPal6E": false,
+            "isWindowsStapal": false,
+            "palBoxName": "SBOX-A"
+        }
+    },
+    "Pal-6D": {
+        "val": {
+            "address": "172.16.27.4",
+            "devName": "Pal-6D",
+            "devType": "pal6",
+            "alias": "P6D",
+            "endpoints": {
+                "RADIO_24": {
+                    "defaultIp": "192.168.75.5",
+                    "color": "#fabebe"
+                },
+                "RADIO_5": {
+                    "defaultIpv6": [
+                        "fe80::2827:9eff:fe91:be99",
+                        "2001:470:1f07:d5b::2703"
+                    ],
+                    "defaultIp": "192.168.70.135",
+                    "color": "#8b4513"
+                },
+                "RADIO_5A": {
+                    "defaultIpv6": [
+                        "fe80::2827:9eff:fe91:be99",
+                        "2001:470:1f07:d5b::2703"
+                    ],
+                    "defaultIp": "192.168.70.5",
+                    "color": "#008080"
+                },
+                "RADIO_5B": {
+                    "defaultIp": "192.168.70.70",
+                    "color": "#ff00ff"
+                }
+            },
+            "isPal6E": false,
+            "isWindowsStapal": false,
+            "palBoxName": "SBOX-D"
+        }
+    },
+    "W1E-STApal": {
+        "val": {
+            "address": "172.16.28.101",
+            "devName": "W1E-STApal",
+            "devType": "staPal",
+            "alias": "W1E",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.50",
+                    "color": "#e6beff"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": true,
+            "palBoxName": "smartBox-STA-E"
+        }
+    },
+    "L2E-STApal": {
+        "val": {
+            "address": "172.16.28.102",
+            "devName": "L2E-STApal",
+            "devType": "staPal",
+            "alias": "L2E",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.51",
+                    "color": "#aa6e28"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "smartBox-STA-E"
+        }
+    },
+    "L3E-STApal": {
+        "val": {
+            "address": "172.16.28.103",
+            "devName": "L3E-STApal",
+            "devType": "staPal",
+            "alias": "L3E",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIpv6": [
+                        "fe80::5614:f3ff:fea9:cc2",
+                        "2001:470:1f07:d5b::28a2"
+                    ],
+                    "defaultIp": "192.168.80.52",
+                    "color": "#deb887"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "smartBox-STA-E"
+        }
+    },
+    "L4E-STApal": {
+        "val": {
+            "address": "172.16.28.104",
+            "devName": "L4E-STApal",
+            "devType": "staPal",
+            "alias": "L4E",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.53",
+                    "color": "#800000"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "smartBox-STA-E"
+        }
+    },
+    "Physical-MPE2-B": {
+        "val": {
+            "address": "172.16.23.2",
+            "devName": "Physical-MPE2-B",
+            "devType": "MPE"
+        }
+    },
+    "Physical-QA-C": {
+        "val": {
+            "address": "172.16.20.3",
+            "devName": "Physical-QA-C",
+            "devType": "quadAtten"
+        }
+    },
+    "Physical-QA-D": {
+        "val": {
+            "address": "172.16.20.4",
+            "devName": "Physical-QA-D",
+            "devType": "quadAtten"
+        }
+    },
+    "Physical-QA-E": {
+        "val": {
+            "address": "172.16.20.5",
+            "devName": "Physical-QA-E",
+            "devType": "quadAtten"
+        }
+    },
+    "QE-12": {
+        "val": {
+            "devName": "QE-12",
+            "deviceMap": [
+                {
+                    "attens": [
+                        "atten1",
+                        "atten2"
+                    ],
+                    "_id": "63e2670a80adae001c7ca64e",
+                    "address": "172.16.20.5"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "QE-34": {
+        "val": {
+            "devName": "QE-34",
+            "deviceMap": [
+                {
+                    "attens": [
+                        "atten3",
+                        "atten4"
+                    ],
+                    "_id": "63e2670a80adae001c7ca650",
+                    "address": "172.16.20.5"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "Physical-QA-F": {
+        "val": {
+            "address": "172.16.20.6",
+            "devName": "Physical-QA-F",
+            "devType": "quadAtten"
+        }
+    },
+    "Physical-QA-G": {
+        "val": {
+            "address": "172.16.20.7",
+            "devName": "Physical-QA-G",
+            "devType": "quadAtten"
+        }
+    },
+    "QG-12": {
+        "val": {
+            "devName": "QG-12",
+            "deviceMap": [
+                {
+                    "attens": [
+                        "atten1",
+                        "atten2"
+                    ],
+                    "_id": "63e2670a80adae001c7ca654",
+                    "address": "172.16.20.7"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "Physical-QA-H": {
+        "val": {
+            "address": "172.16.20.8",
+            "devName": "Physical-QA-H",
+            "devType": "quadAtten"
+        }
+    },
+    "Physical-QA-I": {
+        "val": {
+            "address": "172.16.20.9",
+            "devName": "Physical-QA-I",
+            "devType": "quadAtten"
+        }
+    },
+    "Physical-QA-J": {
+        "val": {
+            "address": "172.16.20.10",
+            "devName": "Physical-QA-J",
+            "devType": "quadAtten"
+        }
+    },
+    "QJ-12": {
+        "val": {
+            "devName": "QJ-12",
+            "deviceMap": [
+                {
+                    "attens": [
+                        "atten1",
+                        "atten2"
+                    ],
+                    "_id": "63e2670a80adae001c7ca659",
+                    "address": "172.16.20.10"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "QJ-34": {
+        "val": {
+            "devName": "QJ-34",
+            "deviceMap": [
+                {
+                    "attens": [
+                        "atten3",
+                        "atten4"
+                    ],
+                    "_id": "63e2670a80adae001c7ca65b",
+                    "address": "172.16.20.10"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "TT-A": {
+        "val": {
+            "alias": "TT-A",
+            "address": "172.16.24.1",
+            "devType": "turntable"
+        }
+    },
+    "iGen-A": {
+        "val": {
+            "address": "172.16.25.1",
+            "devName": "iGen-A",
+            "devType": "iGen"
+        }
+    },
+    "Physical-MPE2-A": {
+        "val": {
+            "address": "172.16.23.1",
+            "devName": "Physical-MPE2-A",
+            "devType": "MPE"
+        }
+    },
+    "Pal-6B": {
+        "val": {
+            "address": "172.16.27.2",
+            "devName": "Pal-6B",
+            "devType": "pal6",
+            "alias": "Pal-6B",
+            "endpoints": {
+                "RADIO_24": {
+                    "defaultIp": "192.168.55.5",
+                    "defaultIpv6": [
+                        ""
+                    ],
+                    "color": "#47BA6F"
+                },
+                "RADIO_5": {
+                    "defaultIp": "192.168.50.135",
+                    "defaultIpv6": [
+                        ""
+                    ],
+                    "color": "#593954"
+                },
+                "RADIO_5A": {
+                    "defaultIp": "192.168.50.5",
+                    "defaultIpv6": [
+                        ""
+                    ],
+                    "color": "#CC997A"
+                },
+                "RADIO_5B": {
+                    "defaultIp": "192.168.50.70",
+                    "defaultIpv6": [
+                        ""
+                    ],
+                    "color": "#4DB923"
+                }
+            },
+            "isPal6E": false,
+            "isWindowsStapal": false,
+            "palBoxName": "SBOX-B"
+        }
+    },
+    "QA-C": {
+        "val": {
+            "devName": "QA-C",
+            "deviceMap": [
+                {
+                    "_id": "6a2c5e94c46c492e4bcc984c",
+                    "attens": [
+                        "atten1",
+                        "atten2",
+                        "atten3",
+                        "atten4"
+                    ],
+                    "address": "172.16.20.3"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "QA-D": {
+        "val": {
+            "devName": "QA-D",
+            "deviceMap": [
+                {
+                    "_id": "6a2c5e94c46c492e4bcc984d",
+                    "attens": [
+                        "atten1",
+                        "atten2",
+                        "atten3",
+                        "atten4"
+                    ],
+                    "address": "172.16.20.4"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "QA-F": {
+        "val": {
+            "devName": "QA-F",
+            "deviceMap": [
+                {
+                    "_id": "6a2c5e94c46c492e4bcc984e",
+                    "attens": [
+                        "atten1",
+                        "atten2",
+                        "atten3",
+                        "atten4"
+                    ],
+                    "address": "172.16.20.6"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "QA-H": {
+        "val": {
+            "devName": "QA-H",
+            "deviceMap": [
+                {
+                    "_id": "6a2c5e94c46c492e4bcc984f",
+                    "attens": [
+                        "atten1",
+                        "atten2",
+                        "atten3",
+                        "atten4"
+                    ],
+                    "address": "172.16.20.8"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "P7C": {
+        "val": {
+            "address": "172.16.27.3",
+            "devName": "P7C",
+            "devType": "pal7",
+            "alias": "palBox-P7C",
+            "endpoints": {
+                "RADIO_24": {
+                    "defaultIp": "192.168.65.5",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#163BB8"
+                },
+                "RADIO_5A": {
+                    "defaultIp": "192.168.60.5",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#665D02"
+                },
+                "RADIO_5B": {
+                    "defaultIp": "192.168.60.70",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#7B88E7"
+                },
+                "RADIO_6": {
+                    "defaultIp": "192.168.60.135",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#669876"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L1C": {
+        "val": {
+            "address": "172.16.28.1",
+            "devName": "L1C",
+            "devType": "staPal7",
+            "alias": "palBox-L1-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.25",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#670E7A"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L2C": {
+        "val": {
+            "address": "172.16.28.2",
+            "devName": "L2C",
+            "devType": "staPal7",
+            "alias": "palBox-L2-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.26",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#CDA18E"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L3C": {
+        "val": {
+            "address": "172.16.28.3",
+            "devName": "L3C",
+            "devType": "staPal7",
+            "alias": "palBox-L3-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.27",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#AC46B9"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L4C": {
+        "val": {
+            "address": "172.16.28.4",
+            "devName": "L4C",
+            "devType": "staPal7",
+            "alias": "palBox-L4-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.28",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#64F017"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L5C": {
+        "val": {
+            "address": "172.16.28.5",
+            "devName": "L5C",
+            "devType": "staPal7",
+            "alias": "palBox-L5-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.29",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#7FBC92"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L6C": {
+        "val": {
+            "address": "172.16.28.6",
+            "devName": "L6C",
+            "devType": "staPal7",
+            "alias": "palBox-L6-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.30",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#C7E62A"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L7C": {
+        "val": {
+            "address": "172.16.28.7",
+            "devName": "L7C",
+            "devType": "staPal7",
+            "alias": "palBox-L7-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.31",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#38D36A"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L8C": {
+        "val": {
+            "address": "172.16.28.8",
+            "devName": "L8C",
+            "devType": "staPal7",
+            "alias": "palBox-L8-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.32",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#13FEFB"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L9C": {
+        "val": {
+            "address": "172.16.28.9",
+            "devName": "L9C",
+            "devType": "staPal7",
+            "alias": "palBox-L9-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.33",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#FB0842"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L10C": {
+        "val": {
+            "address": "172.16.28.10",
+            "devName": "L10C",
+            "devType": "staPal7",
+            "alias": "palBox-L10-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.34",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#4C0B48"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L11C": {
+        "val": {
+            "address": "172.16.28.11",
+            "devName": "L11C",
+            "devType": "staPal7",
+            "alias": "palBox-L11-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.35",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#32F424"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L12C": {
+        "val": {
+            "address": "172.16.28.12",
+            "devName": "L12C",
+            "devType": "staPal7",
+            "alias": "palBox-L12-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.36",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#1454EA"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L13C": {
+        "val": {
+            "address": "172.16.28.13",
+            "devName": "L13C",
+            "devType": "staPal7",
+            "alias": "palBox-L13-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.37",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#7C196E"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L14C": {
+        "val": {
+            "address": "172.16.28.14",
+            "devName": "L14C",
+            "devType": "staPal7",
+            "alias": "palBox-L14-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.38",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#7DD83F"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L15C": {
+        "val": {
+            "address": "172.16.28.15",
+            "devName": "L15C",
+            "devType": "staPal7",
+            "alias": "palBox-L15-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.39",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#22ABFC"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "L16C": {
+        "val": {
+            "address": "172.16.28.16",
+            "devName": "L16C",
+            "devType": "staPal7",
+            "alias": "palBox-L16-STApal7",
+            "endpoints": {
+                "RADIO_2456": {
+                    "defaultIp": "192.168.80.40",
+                    "defaultIpv6": [
+                        "",
+                        ""
+                    ],
+                    "color": "#CC2438"
+                }
+            },
+            "isPal6E": true,
+            "isWindowsStapal": false,
+            "palBoxName": "palBox"
+        }
+    },
+    "Physical-QA-A": {
+        "val": {
+            "address": "172.16.20.30",
+            "devName": "Physical-QA-A",
+            "devType": "quadAtten"
+        }
+    },
+    "QA-A": {
+        "val": {
+            "devName": "QA-A",
+            "deviceMap": [
+                {
+                    "_id": "6a2c5e94c46c492e4bcc9850",
+                    "attens": [
+                        "atten1",
+                        "atten2",
+                        "atten3",
+                        "atten4"
+                    ],
+                    "address": "172.16.20.30"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "Physical-QA-B": {
+        "val": {
+            "address": "172.16.20.24",
+            "devName": "Physical-QA-B",
+            "devType": "quadAtten"
+        }
+    },
+    "QA-B": {
+        "val": {
+            "devName": "QA-B",
+            "deviceMap": [
+                {
+                    "_id": "6a2c5e94c46c492e4bcc9851",
+                    "attens": [
+                        "atten1",
+                        "atten2",
+                        "atten3",
+                        "atten4"
+                    ],
+                    "address": "172.16.20.24"
+                }
+            ],
+            "devType": "virtualAtten"
+        }
+    },
+    "L3C_iperf2": {
+        "val": {
+            "endpoints": {
+                "ETHERNET": {
+                    "defaultIp": "192.168.80.27",
+                    "defaultIpv6": [],
+                    "color": "#BEB963"
+                }
+            },
+            "dutName": "L3C_iperf2",
+            "address": "192.168.80.27",
+            "dutType": "iperf2Endpoint",
+            "natPort": "30001",
+            "iperfPort": "5001",
+            "dutId": "6806a627f1e06fd500063fb3"
+        }
+    },
+    "L3C_iperf2B": {
+        "val": {
+            "endpoints": {
+                "ETHERNET": {
+                    "defaultIp": "192.168.80.27",
+                    "defaultIpv6": [],
+                    "color": "#CEFA98"
+                }
+            },
+            "dutName": "L3C_iperf2B",
+            "address": "192.168.80.27",
+            "dutType": "iperf2Endpoint",
+            "natPort": "30002",
+            "iperfPort": "5002",
+            "dutId": "6806a647f1e06fd500063fb9"
+        }
+    },
+    "L3C_iperf3": {
+        "val": {
+            "endpoints": {
+                "ETHERNET": {
+                    "defaultIp": "192.168.80.27",
+                    "defaultIpv6": [],
+                    "color": "#DB3DAE"
+                }
+            },
+            "dutName": "L3C_iperf3",
+            "address": "192.168.80.27",
+            "dutType": "iperf3Endpoint",
+            "natPort": "30003",
+            "iperfPort": "5201",
+            "dutId": "680b8da6f1e06fd5000662c9"
+        }
+    },
+    "UNH-IOL Pal 2.4 or 5": {
+        "val": {
+            "endpoints": {
+                "ETHERNET": {
+                    "defaultIp": "192.168.0.1",
+                    "defaultIpv6": [],
+                    "defaultIpv6_": {
+                        "linkLocal": "",
+                        "global": ""
+                    },
+                    "color": "#650145"
+                }
+            },
+            "dutName": "UNH-IOL Pal 2.4 or 5",
+            "address": "192.168.1.1",
+            "dutType": "iperf3Endpoint",
+            "natPort": "30004",
+            "iperfPort": "5201",
+            "dutId": "696f93d259b71410efa53962"
+        }
+    },
+    "FieldPal": {
+        "val": {
+            "endpoints": {
+                "ETHERNET": {
+                    "defaultIp": "192.168.15.55",
+                    "defaultIpv6": [],
+                    "defaultIpv6_": {
+                        "linkLocal": "",
+                        "global": ""
+                    },
+                    "color": "#000000"
+                }
+            },
+            "dutName": "FieldPal",
+            "address": "192.168.15.55",
+            "dutType": "multiperfEndpoint",
+            "natPort": "30005",
+            "dutId": "69c596b82491f3847923d8dc",
+            "managementAddr": "172.16.22.55"
+        }
+    },
+    "stackType": "stack-max",
+    "systemConfig": {
+        "val": {
+            "stackType": "stack-max"
+        }
+    },
+    "isLegacyStack": true,
+    "softwareVersion": {
+        "val": {
+            "softwareVersion": "26.1.0-9"
+        }
+    },
+    "sd2UtilsVersion": "20260325",
+    "pathAatten": "QA-A",
+    "pathBatten": "QA-B"
+}

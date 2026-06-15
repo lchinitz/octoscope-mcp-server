@@ -1,0 +1,1670 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+// ── Configuration ─────────────────────────────────────────────────────────────
+
+//Andy, Texas
+const OCTOBOX_BASE_URL =
+  process.env.OCTOBOX_BASE_URL ?? "http://10.160.55.30:4000";
+
+//SM3
+//const OCTOBOX_BASE_URL =
+//  process.env.OCTOBOX_BASE_URL ?? "http://10.160.81.80:4000";			       
+
+// ── API client ────────────────────────────────────────────────────────────────
+
+async function apiRequest(
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<unknown> {
+  const url = `${OCTOBOX_BASE_URL}${path}`;
+  const init: RequestInit = {
+    method,
+    headers: { "Content-Type": "application/json" },
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "(no body)");
+    throw new Error(
+      `octoScope API error ${response.status} ${response.statusText}: ${text}`
+    );
+  }
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function errText(err: unknown, context: string): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return `Error ${context}: ${message}\n\nEnsure OCTOBOX_BASE_URL is set correctly (current: ${OCTOBOX_BASE_URL}).`;
+}
+
+function ok(data: unknown) {
+  return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+}
+
+function fail(err: unknown, context: string) {
+  return {
+    content: [{ type: "text" as const, text: errText(err, context) }],
+    isError: true,
+  };
+}
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+function formatMarkdown(data: unknown): string {
+  const arr = Array.isArray(data) ? data : [data];
+  if (arr.length === 0) return "No attenuators found.";
+  const lines: string[] = [];
+  for (const device of arr as Record<string, unknown>[]) {
+    lines.push(`### Attenuator: \`${device["managementAddr"] ?? "unknown"}\``);
+    const extra = Object.entries(device).filter(([k]) => k !== "managementAddr");
+    if (extra.length > 0) {
+      lines.push(extra.map(([k, v]) => `- **${k}**: ${JSON.stringify(v)}`).join("\n"));
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+// ── MCP server ────────────────────────────────────────────────────────────────
+
+const server = new McpServer({
+  name: "octobox-mcp-server",
+  version: "1.1.0",
+});
+
+//REGISTER TOOLS
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/attenuators
+// Query attenuators by optional comma-separated IP list
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_get_attenuators",
+  {
+    title: "Get Attenuator Values",
+    description:
+      "Retrieve current attenuation values from one or more octoScope attenuator devices. " +
+      "GET /api/v1/attenuators?managementAddrList=... " +
+      "Omit managementAddrList to return all attenuators known to the system.",
+    inputSchema: z.object({
+      managementAddrList: z
+        .string()
+        .optional()
+        .describe(
+          "Comma-separated list of attenuator IP addresses " +
+            "(e.g. '192.168.1.10,192.168.1.11'). Omit to retrieve all."
+        ),
+      response_format: z
+        .enum(["markdown", "json"])
+        .default("markdown")
+        .describe("'markdown' returns a human-readable table; 'json' returns raw payload."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const url = new URL(`${OCTOBOX_BASE_URL}/api/v1/attenuators`);
+      if (params.managementAddrList) {
+        url.searchParams.set("managementAddrList", params.managementAddrList);
+      }
+      const response = await fetch(url.toString(), {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "(no body)");
+        throw new Error(`octoScope API error ${response.status} ${response.statusText}: ${text}`);
+      }
+      const data = await response.json();
+
+      if (params.response_format === "json") {
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }], structuredContent: { attenuators: data } };
+      }
+      return { content: [{ type: "text", text: formatMarkdown(data) }], structuredContent: { attenuators: data } };
+    } catch (err) {
+      return fail(err, "fetching attenuators");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/attenuators/{managementAddr}
+// Get a single attenuator by IP address
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_get_attenuator_by_addr",
+  {
+    title: "Get Single Attenuator by IP",
+    description:
+      "Retrieve attenuation values for a single attenuator device by its IP address. " +
+      "GET /api/v1/attenuators/{managementAddr}.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("IP address of the attenuator device."),
+      response_format: z
+        .enum(["markdown", "json"])
+        .default("markdown")
+        .describe("'markdown' returns a table; 'json' returns raw payload."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/attenuators/${encodeURIComponent(params.managementAddr)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      return { content: [{ type: "text", text: formatMarkdown(data) }] };
+    } catch (err) {
+      return fail(err, "fetching attenuator");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/attenuators/{managementAddr}/{channel}/{attenuation}
+// Set attenuation on a specific channel of a quadAtten device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_set_attenuator",
+  {
+    title: "Set Attenuator Channel Value",
+    description:
+      "Set attenuation on one or more channels of a quadAtten device by IP address. " +
+      "POST /api/v1/attenuators/{managementAddr}/{channel}/{attenuation}. " +
+      "channel: atten1 | atten2 | atten3 | atten4 | atten (sets all four). " +
+      "attenuation: a single integer (e.g. '50') or a bracketed array '[10,20,30,40]' when channel='atten'.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("IP address of the quadAtten device."),
+      channel: z
+        .string()
+        .describe("Channel to set: atten1, atten2, atten3, atten4, or atten (all)."),
+      attenuation: z
+        .string()
+        .describe(
+          "Attenuation value as a string. Single integer for one channel (e.g. '50'). " +
+            "Bracketed array for all channels (e.g. '[10,20,30,40]') when channel='atten'."
+        ),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "POST",
+        `/api/v1/attenuators/${encodeURIComponent(params.managementAddr)}` +
+          `/${encodeURIComponent(params.channel)}` +
+          `/${encodeURIComponent(params.attenuation)}`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, "setting attenuator channel");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/attenuators/list
+// Set attenuation for multiple devices/channels in one call
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_set_attenuators_list",
+  {
+    title: "Set Multiple Attenuators via List",
+    description:
+      "Set attenuation values for multiple devices and/or channels in a single call. " +
+      "POST /api/v1/attenuators/list. " +
+      "Each command specifies a managementAddr, channel, and attenuation value.",
+    inputSchema: z.object({
+      commands: z
+        .array(
+          z.object({
+            managementAddr: z.string().describe("Device IP address."),
+            channel: z
+              .string()
+              .describe("Channel: atten, atten1, atten2, atten3, or atten4."),
+            attenuation: z
+              .string()
+              .describe("Attenuation value (e.g. '50' or '[10,20,30,40]')."),
+          })
+        )
+        .min(1)
+        .describe("Array of attenuation set commands."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest("POST", "/api/v1/attenuators/list", params.commands);
+      return ok(data);
+    } catch (err) {
+      return fail(err, "setting attenuators via list");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/attenuators/{name}/{attenuation}
+// Set attenuation by device name (virtual or physical)
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_set_attenuator_by_name",
+  {
+    title: "Set Attenuator by Device Name",
+    description:
+      "Set attenuation values using a device name instead of an IP address. " +
+      "POST /api/v1/attenuators/{name}/{attenuation}. " +
+      "For physical quadAttens, sets all four channels. " +
+      "For virtual quadAttens, sets only the channels defined in the virtual device.",
+    inputSchema: z.object({
+      name: z
+        .string()
+        .describe("Device name as configured in the system (e.g. 'QA-C', 'QA-Left')."),
+      attenuation: z
+        .string()
+        .describe("Attenuation value (e.g. '50')."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "POST",
+        `/api/v1/attenuators/${encodeURIComponent(params.name)}` +
+          `/${encodeURIComponent(params.attenuation)}`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, "setting attenuator by name");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/attenuators/name/list
+// Set attenuation for multiple named devices in one call
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_set_attenuators_name_list",
+  {
+    title: "Set Multiple Attenuators by Name via List",
+    description:
+      "Set attenuation values for multiple named attenuator devices in a single call. " +
+      "POST /api/v1/attenuators/name/list.",
+    inputSchema: z.object({
+      commands: z
+        .array(
+          z.object({
+            name: z
+              .string()
+              .describe("Device name (e.g. 'QA-C')."),
+            attenuation: z
+              .string()
+              .describe("Attenuation value (e.g. '50')."),
+          })
+        )
+        .min(1)
+        .describe("Array of name/attenuation commands."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "POST",
+        "/api/v1/attenuators/name/list",
+        params.commands
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, "setting attenuators by name list");
+    }
+  }
+);
+
+server.registerTool(
+  "octobox_get_testbed_components",
+  {
+    description: "Retrieve all testbed components from the octoScope system. GET /api/v1/testbedComponents",
+    inputSchema: {
+      response_format: z.enum(["markdown", "json"]).default("markdown").describe(
+        "'markdown' returns a human-readable table; 'json' returns raw payload."
+      )
+    }
+  },
+  async ({ response_format = "markdown" }) => {
+    try {
+      const res = await fetch(`${OCTOBOX_BASE_URL}/api/v1/testbedComponents`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (!res.ok) {
+        const errorBody = await res.text();
+        throw new Error(`octoScope API error ${res.status} ${res.statusText}: ${errorBody}`);
+      }
+
+      const data = await res.json();
+
+      if (response_format === "json") {
+        return {
+          content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+        };
+      }
+
+      // Markdown formatting
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        return {
+          content: [{ type: "text", text: "No testbed components found." }]
+        };
+      }
+
+      const components = Array.isArray(data) ? data : [data];
+      const lines = components.map(c => {
+        return [
+          `### Component: \`${c.name ?? c.id ?? "unknown"}\``,
+          ...Object.entries(c)
+            .filter(([k]) => k !== "name")
+            .map(([k, v]) => `- **${k}**: ${JSON.stringify(v)}`)
+        ].join("\n");
+      });
+
+      return {
+        content: [{ type: "text", text: lines.join("\n\n") }]
+      };
+
+    } catch (err) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error fetching testbed components: ${err.message}\n\nEnsure OCTOBOX_BASE_URL is set correctly (current: ${process.env.OCTOBOX_BASE_URL}).`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+//STAPAL7 TOOLS
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/staPal7s/{managementAddr}/{request}
+// Send a gRPC read query to a staPal7 device (no apStaMode required)
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_staPal7_query",
+  {
+    title: "Query staPal7 Device",
+    description:
+      "Send a gRPC read query to a staPal7 device. " +
+      "GET /api/v1/staPal7s/{managementAddr}/{request}. " +
+      "Use for request types that do not require an apStaMode: " +
+      "'ApiVersionRead', 'SystemConfigRead', 'SystemEtcHostsRead', " +
+      "'SystemReset', 'WiFiRadioStateRead'.",
+    inputSchema: z.object({
+      managementAddr: z
+        .string()
+        .describe("IP address of the staPal7 device (e.g. '172.16.28.4')."),
+      request: z
+        .enum([
+          "ApiVersionRead",
+          "SystemConfigRead",
+          "SystemEtcHostsRead",
+          "SystemReset",
+          "WiFiRadioStateRead",
+        ])
+        .describe(
+          "gRPC read request type. One of: " +
+            "'ApiVersionRead', 'SystemConfigRead', 'SystemEtcHostsRead', " +
+            "'SystemReset', 'WiFiRadioStateRead'."
+        ),
+      response_format: z
+        .enum(["markdown", "json"])
+        .default("json")
+        .describe("'markdown' returns a human-readable summary; 'json' returns raw payload."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/staPal7s/${encodeURIComponent(params.managementAddr)}` +
+          `/${encodeURIComponent(params.request)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      // Markdown: render key/value pairs
+      const lines = Object.entries(data as Record<string, unknown>).map(
+        ([k, v]) => `- **${k}**: ${JSON.stringify(v)}`
+      );
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `### staPal7 \`${params.managementAddr}\` — ${params.request}\n\n` +
+              (lines.length ? lines.join("\n") : "_No data returned._"),
+          },
+        ],
+      };
+    } catch (err) {
+      return fail(err, `querying staPal7 ${params.managementAddr} (${params.request})`);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/staPal7s/{managementAddr}/{request}/{apStaMode}
+// Send a gRPC read query to a staPal7 device with an apStaMode parameter
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_staPal7_query_with_mode",
+  {
+    title: "Query staPal7 Device with AP/STA Mode",
+    description:
+      "Send a gRPC read query to a staPal7 device that requires an apStaMode. " +
+      "GET /api/v1/staPal7s/{managementAddr}/{request}/{apStaMode}. " +
+      "Use 'ReadValues' to report all station/sniffer configurations for the given mode. " +
+      "Use 'WiFiSTAScan' to report available WiFi connections (device must be in STA mode).",
+    inputSchema: z.object({
+      managementAddr: z
+        .string()
+        .describe("IP address of the staPal7 device (e.g. '172.16.28.4')."),
+      request: z
+        .enum(["ReadValues", "WiFiSTAScan"])
+        .describe(
+          "'ReadValues' — reports all station/sniffer configurations for the given apStaMode. " +
+            "'WiFiSTAScan' — reports available WiFi connections; device must be in STA mode."
+        ),
+      apStaMode: z
+        .enum([
+          "AP",
+          "STA",
+          "SNIFFER",
+          "REPLAY",
+          "MODE_AP",
+          "MODE_STA",
+          "MODE_SNIFFER",
+          "MODE_REPLAY",
+        ])
+        .describe(
+          "Device mode. Preferred values: AP, STA, SNIFFER, REPLAY. " +
+            "Backwards-compatible values also accepted: MODE_AP, MODE_STA, MODE_SNIFFER, MODE_REPLAY."
+        ),
+      response_format: z
+        .enum(["markdown", "json"])
+        .default("json")
+        .describe("'markdown' returns a human-readable summary; 'json' returns raw payload."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/staPal7s/${encodeURIComponent(params.managementAddr)}` +
+          `/${encodeURIComponent(params.request)}` +
+          `/${encodeURIComponent(params.apStaMode)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      const lines = Object.entries(data as Record<string, unknown>).map(
+        ([k, v]) => `- **${k}**: ${JSON.stringify(v)}`
+      );
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text:
+              `### staPal7 \`${params.managementAddr}\` — ${params.request} (${params.apStaMode})\n\n` +
+              (lines.length ? lines.join("\n") : "_No data returned._"),
+          },
+        ],
+      };
+    } catch (err) {
+      return fail(
+        err,
+        `querying staPal7 ${params.managementAddr} (${params.request}/${params.apStaMode})`
+      );
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/staPal7s
+// Send a gRPC command (Push/stop) to a staPal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_staPal7_command",
+  {
+    title: "Send Command to staPal7 Device",
+    description:
+      "Send a gRPC command to a staPal7 device to configure and start its radios. " +
+      "POST /api/v1/staPal7s. " +
+      "The default request type 'Push' stops, updates, and restarts radios in one call. " +
+      "Use 'WiFiSTAStop' to send an explicit stop. " +
+      "Only managementAddr, request, and apStaMode are required; all other fields are optional overrides.",
+    inputSchema: z.object({
+      // Required fields
+      managementAddr: z
+        .string()
+        .describe("IP address of the staPal7 device (e.g. '172.16.28.4')."),
+      request: z
+        .string()
+        .default("Push")
+        .describe(
+          "gRPC command type. 'Push' (default) stops, updates, and starts radios. " +
+            "'WiFiSTAStop' sends an explicit stop command."
+        ),
+      apStaMode: z
+        .enum([
+          "AP",
+          "STA",
+          "SNIFFER",
+          "REPLAY",
+          "MODE_AP",
+          "MODE_STA",
+          "MODE_SNIFFER",
+          "MODE_REPLAY",
+        ])
+        .describe(
+          "Device mode. Preferred values: AP, STA, SNIFFER, REPLAY. " +
+            "Backwards-compatible values also accepted: MODE_AP, MODE_STA, MODE_SNIFFER, MODE_REPLAY."
+        ),
+
+      // Optional radio/network configuration fields
+      bandwidth: z
+        .enum([
+          "BANDWIDTH_20_FIXED",
+          "BANDWIDTH_40_ADAPT",
+          "BANDWIDTH_80_ADAPT",
+          "BANDWIDTH_160_ADAPT",
+          "BANDWIDTH_320_ADAPT",
+          "BANDWIDTH_ADAPT",
+        ])
+        .optional()
+        .describe("Channel bandwidth. BANDWIDTH_ADAPT is STA mode only."),
+      beaconInterval: z.number().optional().describe("Beacon interval in ms (e.g. 100)."),
+      bridgeEnable: z.boolean().optional().describe("Enable bridge mode."),
+      bssid: z.string().optional().describe("BSSID to connect to."),
+      bssidMode: z
+        .enum(["BSSID_FORCED", "BSSID_PREFERRED", "BSSID_DISABLED"])
+        .optional()
+        .describe("BSSID selection mode."),
+      captureEnable: z.boolean().optional().describe("Enable packet capture."),
+      certFilename: z.string().optional().describe("Certificate filename for 802.1x auth (e.g. 'example.pfx')."),
+      chainRXMask: z.number().int().optional().describe("RX chain mask (not currently supported on staPal7)."),
+      chainTXMask: z.number().int().optional().describe("TX chain mask (not currently supported on staPal7)."),
+      channelScanList: z
+        .array(z.number().int())
+        .optional()
+        .describe("List of channels to scan."),
+      channelScanMode: z.boolean().optional().describe("Enable channel scan mode."),
+      ctsRtsThreshold: z
+        .number()
+        .min(0)
+        .max(2347)
+        .optional()
+        .describe("CTS/RTS threshold in bytes (0–2347)."),
+      dfsEnable: z.boolean().optional().describe("Enable DFS."),
+      filterManagementOnly: z.boolean().optional().describe("Capture management frames only."),
+      filterHeadersOnly: z.boolean().optional().describe("Capture headers only."),
+      fragmentationThreshold: z
+        .number()
+        .min(256)
+        .max(2346)
+        .optional()
+        .describe("Fragmentation threshold in bytes (256–2346, must be even)."),
+      guardInterval: z
+        .enum(["GUARD_0_4US", "GUARD_0_8US", "GUARD_1_6US", "GUARD_3_2US", "GUARD_ADAPT"])
+        .optional()
+        .describe("Guard interval."),
+      interface_: z
+        .enum(["INTERFACE_N", "INTERFACE_BE", "INTERFACE_AX", "INTERFACE_AC"])
+        .optional()
+        .describe("WiFi interface standard."),
+      ipAddress: z.string().optional().describe("Static IP address (e.g. '192.168.15.95')."),
+      ipGateway: z.string().optional().describe("IP gateway (e.g. '192.168.15.1')."),
+      ipMode: z
+        .enum(["IP_DHCP", "IP_STATIC"])
+        .optional()
+        .describe("IP addressing mode."),
+      ipNetmask: z.string().optional().describe("IP netmask (e.g. '255.255.0.0')."),
+      ipAddressBridge: z.string().optional().describe("Bridge IP address."),
+      ipGatewayBridge: z.string().optional().describe("Bridge IP gateway."),
+      ipModeBridge: z
+        .enum(["IP_UNKNOWN", "IP_DHCP", "IP_STATIC"])
+        .optional()
+        .describe("Bridge IP mode."),
+      ipNetmaskBridge: z.string().optional().describe("Bridge IP netmask."),
+      ipv6Address: z.string().optional().describe("IPv6 address."),
+      ipv6Gateway: z.string().optional().describe("IPv6 gateway."),
+      ipv6Mode: z.enum(["IP_DHCP", "IP_STATIC"]).optional().describe("IPv6 addressing mode."),
+      ipv6AddressBridge: z.string().optional().describe("Bridge IPv6 address."),
+      ipv6GatewayBridge: z.string().optional().describe("Bridge IPv6 gateway."),
+      ipv6ModeBridge: z
+        .enum(["IP_UNKNOWN", "IP_DHCP", "IP_STATIC"])
+        .optional()
+        .describe("Bridge IPv6 mode."),
+      ipv6PrefixLength: z.number().optional().describe("IPv6 prefix length (e.g. 64)."),
+      ipv6PrefixLengthBridge: z.number().optional().describe("Bridge IPv6 prefix length."),
+      maxAMPDUFrameSize: z
+        .enum([
+          "FRAME_8192",
+          "FRAME_16383",
+          "FRAME_32767",
+          "FRAME_65535",
+          "FRAME_131071",
+          "FRAME_262143",
+          "FRAME_524287",
+          "FRAME_1048575",
+        ])
+        .optional()
+        .describe("Maximum A-MPDU frame size."),
+      mloFeatureDisable: z
+        .boolean()
+        .optional()
+        .describe("true disables MLO; false enables MLO."),
+      ofdmaDLEnable: z.boolean().optional().describe("Enable OFDMA downlink."),
+      ofdmaULEnable: z.boolean().optional().describe("Enable OFDMA uplink."),
+      palRadio: z
+        .enum(["RADIO_2456"])
+        .optional()
+        .describe("PAL radio selector. Allowable value: RADIO_2456."),
+      password: z.string().optional().describe("WiFi password."),
+      primaryChannel: z
+        .number()
+        .optional()
+        .describe("Primary channel number. Allowable values depend on bandwidth and device type."),
+      priority: z
+        .enum([
+          "PRIORITY_BACKGROUND",
+          "PRIORITY_BESTEFFORT",
+          "PRIORITY_VIDEO",
+          "PRIORITY_VOICE",
+          "PRIORITY_NOBACKOFF",
+          "PRIORITY_ADAPT",
+        ])
+        .optional()
+        .describe("Traffic priority."),
+      probeID: z.string().optional().describe("Probe identifier (e.g. 'L4C')."),
+      netcatPort: z.number().optional().describe("Netcat port (e.g. 10011)."),
+      radiusIdentity: z.string().optional().describe("Username for 802.1x RADIUS authentication."),
+      radiusPassword: z.string().optional().describe("Password for 802.1x RADIUS authentication."),
+      rate: z.number().optional().describe("Rate. Only RATE_ADAPT (0) is supported."),
+      roamTargetThreshold: z.number().optional().describe("Roam target RSSI threshold (e.g. -95)."),
+      roamThreshold: z.number().optional().describe("Roam trigger RSSI threshold (e.g. -95)."),
+      security: z
+        .enum([
+          "SECURITY_NONE",
+          "SECURITY_WPA",
+          "SECURITY_WPA2",
+          "SECURITY_WPA_WPA2_MIXED",
+          "SECURITY_WPA3",
+          "SECURITY_WPA3_WPA2_MIXED",
+          "SECURITY_OWE",
+        ])
+        .optional()
+        .describe("WiFi security mode. SECURITY_OWE is RADIO_6 only."),
+      ssid: z.string().optional().describe("SSID to connect to or broadcast."),
+      streams: z
+        .number()
+        .min(1)
+        .max(8)
+        .optional()
+        .describe("Number of spatial streams (1–8)."),
+      triggerOutMode: z
+        .enum(["TMODE_DISABLE", "TMODE_SCRIPT_ONLY", "TMODE_SCRIPT_W_PACKETS"])
+        .optional()
+        .describe("Trigger output mode."),
+      triggerOutPacketFilterMask: z
+        .number()
+        .optional()
+        .describe(
+          "Bitmask of packet types to trigger on. Allowable flags: INCLUDE_MGMT_ASSOC_REQ, " +
+            "INCLUDE_MGMT_ASSOC_RESP, INCLUDE_MGMT_REASSOC_REQ, INCLUDE_MGMT_REASSOC_RESP, " +
+            "INCLUDE_MGMT_PROBE_REQ, INCLUDE_MGMT_PROBE_RESP, INCLUDE_MGMT_DATA, " +
+            "INCLUDE_MGMT_DISASSOC, INCLUDE_MGMT_AUTH, INCLUDE_MGMT_DEAUTH, " +
+            "INCLUDE_CTRL_RTS, INCLUDE_CTRL_CTS, INCLUDE_BEACON, INCLUDE_CTRL_ACK, " +
+            "INCLUDE_CTRL_BLOCK_ACK, INCLUDE_TRIGGER_FRAME."
+        ),
+      triggerOutScriptCmd: z
+        .string()
+        .optional()
+        .describe("Script command to run on trigger (e.g. 'python3/octoscope/delay_gpio.py')."),
+      txAtten: z.number().optional().describe("TX attenuation value."),
+      uApsdEnable: z.boolean().optional().describe("Enable U-APSD (WMM power save)."),
+      vEnable: z.boolean().optional().describe("Enable verbose mode."),
+      vLogging: z.boolean().optional().describe("Enable verbose logging."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest("POST", "/api/v1/staPal7s", params);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `sending command to staPal7 ${params.managementAddr}`);
+    }
+  }
+);
+
+//TRAFFIC PAIR API TOOLS
+
+const TrafficEndpointSchema = z.object({
+  alias: z.string().describe("Endpoint alias (e.g. 'P6C_5' or 'Server')."),
+  managementAddress: z.string().optional().describe("Management IP address of the endpoint (e.g. '172.16.27.3')."),
+  trafficAddress: z.string().optional().describe("Traffic IP address(es), slash-separated for dual-stack (e.g. '192.168.15.80/2001:470:1f07:d5b::80')."),
+  devType: z.string().optional().describe("Device type (e.g. 'pal6', 'pal7', 'server')."),
+  radio: z.string().optional().describe("Radio interface (e.g. 'RADIO_5'). Leave empty for wired endpoints."),
+  linkMonitor: z.boolean().optional().describe("Enable link monitoring for this endpoint."),
+});
+ 
+const TrafficPairBodySchema = z.object({
+  to: TrafficEndpointSchema.describe("Destination endpoint of the traffic pair."),
+  from: TrafficEndpointSchema.describe("Source endpoint of the traffic pair."),
+  alias: z.string().describe("Unique alias for this traffic pair (e.g. 'Traffic Pair 1')."),
+  active: z.boolean().default(true).optional().describe("Whether this traffic pair is active (default: true)."),
+  testDuration: z.number().int().default(30).optional().describe("Test duration in seconds (default: 30)."),
+  settlingTime: z.number().int().default(2).optional().describe("Settling time in seconds before measurement begins (default: 2)."),
+  bitrate: z.string().optional().describe("Target bitrate with unit (e.g. '100M', '1G'). Use '0' for unlimited. iperf2: KMGkmg; iperf3: KMG."),
+  trafficType: z.enum(["iperf3", "iperf2", "ping"]).default("iperf3").optional().describe("Traffic generator type (default: 'iperf3')."),
+  udp: z.string().optional().describe("Set to 'udp' for UDP traffic; omit for TCP."),
+  ipVersion: z.enum(["ipv4", "ipv6"]).optional().describe("IP version to use ('ipv4' or 'ipv6')."),
+  ipStreams: z.number().int().optional().describe("Number of parallel IP streams (e.g. 4)."),
+  window: z.string().optional().describe("TCP/UDP window size (e.g. '2M')."),
+  naglesAlgo: z.boolean().optional().describe("Enable Nagle's algorithm."),
+  udpCounters64bit: z.boolean().optional().describe("Enable 64-bit UDP counters (iperf2 only)."),
+  zerocopy: z.boolean().optional().describe("Enable zero-copy mode (iperf3 only)."),
+  setMss: z.number().int().optional().describe("Set TCP maximum segment size in bytes."),
+  length: z.string().optional().describe("Payload length in bytes. UDP: 16–65507; TCP: 0–1048576."),
+  dscpType: z.string().optional().describe("Named DSCP preset: 'Best effort' (24), 'Background' (16), 'Video' (32), 'Voice' (56), or 'Custom' to use the dscp field."),
+  dscp: z.number().int().min(0).max(63).optional().describe("DSCP / IP TOS value (0–63). Only used when dscpType is 'Custom'."),
+  pingPayload: z.number().int().min(0).max(65507).optional().describe("Ping payload size in bytes (0–65507). Used when trafficType is 'ping'."),
+  isochronous: z.boolean().optional().describe("Enable isochronous traffic mode (iperf2 only)."),
+  fps: z.number().int().optional().describe("Frames per second for isochronous mode."),
+  mean: z.string().optional().describe("Mean bitrate for isochronous mode (e.g. '20m')."),
+  stdev: z.string().optional().describe("Standard deviation for isochronous mode (e.g. '1m')."),
+  ipg: z.number().optional().describe("Interpacket gap in ms, 0–60 (iperf2, UDP, isochronous only)."),
+  histogram: z.boolean().optional().describe("Enable latency histogram collection."),
+  binCount: z.string().optional().describe("Number of histogram bins (e.g. '1000')."),
+  binWidth: z.string().optional().describe("Width of each histogram bin in microseconds (e.g. '500')."),
+  lowerCi: z.string().optional().describe("Lower confidence interval percentile (e.g. '5')."),
+  upperCi: z.string().optional().describe("Upper confidence interval percentile (e.g. '95')."),
+});
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/trafficPair/add
+// Add a new traffic pair to a given testConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_add_traffic_pair",
+  {
+    title: "Add Traffic Pair",
+    description:
+      "Adds a new traffic pair to a given testConfig. " +
+      "POST /api/v1/trafficPair/add. " +
+      "A traffic pair defines a source ('from') and destination ('to') endpoint, " +
+      "along with traffic generation parameters such as bitrate, protocol, and duration.",
+    inputSchema: z.object({
+      testName: z.string().describe("Name of the testConfig to add the traffic pair to (e.g. 'sample_test_name')."),
+      trafficPair: TrafficPairBodySchema.describe("Traffic pair configuration to add."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest("POST", "/api/v1/trafficPair/add", params);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `adding traffic pair to testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/trafficPair/addVstas
+// Add vSTA traffic pairs to a given testConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_add_vsta_traffic_pairs",
+  {
+    title: "Add vSTA Traffic Pairs",
+    description:
+      "Adds one or more vSTA traffic pairs to a given testConfig in a single call. " +
+      "POST /api/v1/trafficPair/addVstas. " +
+      "Use this instead of octobox_add_traffic_pair when configuring virtual STAs (vSTAs).",
+    inputSchema: z.object({
+      testName: z.string().describe("Name of the testConfig to add the vSTA traffic pairs to."),
+      trafficPairs: z
+        .array(TrafficPairBodySchema)
+        .min(1)
+        .describe("Array of vSTA traffic pair configurations to add."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest("POST", "/api/v1/trafficPair/addVstas", params);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `adding vSTA traffic pairs to testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/trafficPair/{testName}
+// Get all traffic pairs for a given testConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_get_traffic_pairs",
+  {
+    title: "Get Traffic Pairs",
+    description:
+      "Get all trafficPairs associated with a given testConfig name. " +
+      "GET /api/v1/trafficPair/{testName}.",
+    inputSchema: z.object({
+      testName: z.string().describe("The testConfig name from which to retrieve all traffic pairs."),
+      response_format: z
+        .enum(["markdown", "json"])
+        .default("json")
+        .describe("'markdown' returns a human-readable summary; 'json' returns raw payload."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/trafficPair/${encodeURIComponent(params.testName)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      const pairs = Array.isArray(data) ? data : [data];
+      if (pairs.length === 0) {
+        return { content: [{ type: "text" as const, text: `No traffic pairs found for testConfig '${params.testName}'.` }] };
+      }
+      const lines = pairs.map((p: Record<string, unknown>) =>
+        `### Traffic Pair: \`${p["alias"] ?? "unknown"}\`\n` +
+        Object.entries(p)
+          .filter(([k]) => k !== "alias")
+          .map(([k, v]) => `- **${k}**: ${JSON.stringify(v)}`)
+          .join("\n")
+      );
+      return { content: [{ type: "text" as const, text: lines.join("\n\n") }] };
+    } catch (err) {
+      return fail(err, `fetching traffic pairs for testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/trafficPair/{testName}/{alias}
+// Get a specific traffic pair by testConfig name and alias
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_get_traffic_pair",
+  {
+    title: "Get Traffic Pair by Alias",
+    description:
+      "Get a specific trafficPair by testConfig name and alias. " +
+      "GET /api/v1/trafficPair/{testName}/{alias}.",
+    inputSchema: z.object({
+      testName: z.string().describe("The testConfig name containing the traffic pair."),
+      alias: z.string().describe("The alias of the traffic pair to retrieve."),
+      response_format: z
+        .enum(["markdown", "json"])
+        .default("json")
+        .describe("'markdown' returns a human-readable summary; 'json' returns raw payload."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/trafficPair/${encodeURIComponent(params.testName)}/${encodeURIComponent(params.alias)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      const p = data as Record<string, unknown>;
+      const lines = Object.entries(p).map(([k, v]) => `- **${k}**: ${JSON.stringify(v)}`);
+      return {
+        content: [{
+          type: "text" as const,
+          text: `### Traffic Pair: \`${params.alias}\` (testConfig: ${params.testName})\n\n` +
+            (lines.length ? lines.join("\n") : "_No data returned._"),
+        }],
+      };
+    } catch (err) {
+      return fail(err, `fetching traffic pair '${params.alias}' from testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/trafficPair/update/{testName}/{alias}
+// Update a traffic pair within a given testConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_update_traffic_pair",
+  {
+    title: "Update Traffic Pair",
+    description:
+      "Update a traffic pair within a given testConfig. " +
+      "PUT /api/v1/trafficPair/update/{testName}/{alias}. " +
+      "NOTES: Changing the 'alias' field is not permitted. " +
+      "Take care when updating 'to'/'from' fields — changing them can invalidate existing data in the database. " +
+      "If an autotest is active, changing the 'active' field will start/stop traffic immediately; " +
+      "changing other fields alone will have no immediate effect (traffic is not restarted automatically).",
+    inputSchema: z.object({
+      testName: z.string().describe("The testConfig name containing the traffic pair to update."),
+      alias: z.string().describe("The alias of the traffic pair to update. This value cannot be changed."),
+      // All update fields are optional — only send what needs changing
+      to: TrafficEndpointSchema.optional().describe("Updated destination endpoint."),
+      from: TrafficEndpointSchema.optional().describe("Updated source endpoint."),
+      active: z.boolean().optional().describe("Set to true to start traffic or false to stop it (when autotest is running)."),
+      testDuration: z.number().int().optional().describe("Test duration in seconds."),
+      settlingTime: z.number().int().optional().describe("Settling time in seconds."),
+      bitrate: z.string().optional().describe("Target bitrate with unit (e.g. '100M'). Use '0' for unlimited."),
+      trafficType: z.enum(["iperf3", "iperf2", "ping"]).optional().describe("Traffic generator type."),
+      udp: z.string().optional().describe("Set to 'udp' for UDP; omit for TCP."),
+      ipVersion: z.enum(["ipv4", "ipv6"]).optional().describe("IP version ('ipv4' or 'ipv6')."),
+      ipStreams: z.number().int().optional().describe("Number of parallel IP streams."),
+      window: z.string().optional().describe("TCP/UDP window size (e.g. '2M')."),
+      naglesAlgo: z.boolean().optional().describe("Enable Nagle's algorithm."),
+      udpCounters64bit: z.boolean().optional().describe("Enable 64-bit UDP counters (iperf2 only)."),
+      zerocopy: z.boolean().optional().describe("Enable zero-copy mode (iperf3 only)."),
+      setMss: z.number().int().optional().describe("TCP maximum segment size in bytes."),
+      length: z.string().optional().describe("Payload length in bytes. UDP: 16–65507; TCP: 0–1048576."),
+      dscpType: z.string().optional().describe("Named DSCP preset or 'Custom' to use the dscp field."),
+      dscp: z.number().int().min(0).max(63).optional().describe("DSCP / IP TOS value (0–63)."),
+      pingPayload: z.number().int().min(0).max(65507).optional().describe("Ping payload size in bytes."),
+      isochronous: z.boolean().optional().describe("Enable isochronous traffic mode."),
+      fps: z.number().int().optional().describe("Frames per second for isochronous mode."),
+      mean: z.string().optional().describe("Mean bitrate for isochronous mode (e.g. '20m')."),
+      stdev: z.string().optional().describe("Standard deviation for isochronous mode (e.g. '1m')."),
+      ipg: z.number().optional().describe("Interpacket gap in ms, 0–60 (iperf2, UDP, isochronous only)."),
+      histogram: z.boolean().optional().describe("Enable latency histogram collection."),
+      binCount: z.string().optional().describe("Number of histogram bins."),
+      binWidth: z.string().optional().describe("Width of each histogram bin in microseconds."),
+      lowerCi: z.string().optional().describe("Lower confidence interval percentile."),
+      upperCi: z.string().optional().describe("Upper confidence interval percentile."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const { testName, alias, ...body } = params;
+      const data = await apiRequest(
+        "PUT",
+        `/api/v1/trafficPair/update/${encodeURIComponent(testName)}/${encodeURIComponent(alias)}`,
+        { alias, ...body }
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `updating traffic pair '${params.alias}' in testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/v1/trafficPair/{testName}/{alias}
+// Delete a traffic pair from a given testConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_delete_traffic_pair",
+  {
+    title: "Delete Traffic Pair",
+    description:
+      "Delete a trafficPair from a given testConfig by alias. " +
+      "DELETE /api/v1/trafficPair/{testName}/{alias}. " +
+      "Use 'dashboard_test' as testName to delete from the dashboard test.",
+    inputSchema: z.object({
+      testName: z.string().describe("The testConfig name containing the traffic pair to delete. Use 'dashboard_test' for the dashboard test."),
+      alias: z.string().describe("The alias of the traffic pair to delete."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "DELETE",
+        `/api/v1/trafficPair/${encodeURIComponent(params.testName)}/${encodeURIComponent(params.alias)}`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `deleting traffic pair '${params.alias}' from testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/trafficPair/{action}/{testName}/{alias}
+// Start or stop traffic for a specific traffic pair by alias
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_control_traffic_pair",
+  {
+    title: "Start/Stop Traffic Pair by Alias",
+    description:
+      "Start or stop traffic for a specific trafficPair by alias. " +
+      "POST /api/v1/trafficPair/{action}/{testName}/{alias}. " +
+      "action must be either 'start' or 'stop'.",
+    inputSchema: z.object({
+      action: z.enum(["start", "stop"]).describe("Action to perform: 'start' or 'stop'."),
+      testName: z.string().describe("The testConfig name containing the traffic pair."),
+      alias: z.string().describe("The alias of the traffic pair to start or stop."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "POST",
+        `/api/v1/trafficPair/${encodeURIComponent(params.action)}` +
+          `/${encodeURIComponent(params.testName)}` +
+          `/${encodeURIComponent(params.alias)}`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `${params.action}ing traffic pair '${params.alias}' in testConfig '${params.testName}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/trafficPair/{action}/{testName}
+// Start or stop all traffic pairs in a given testConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_control_all_traffic_pairs",
+  {
+    title: "Start/Stop All Traffic Pairs",
+    description:
+      "Start or stop all trafficPairs in a given testConfig at once. " +
+      "POST /api/v1/trafficPair/{action}/{testName}. " +
+      "action must be either 'start' or 'stop'.",
+    inputSchema: z.object({
+      action: z.enum(["start", "stop"]).describe("Action to perform: 'start' or 'stop'."),
+      testName: z.string().describe("The testConfig name whose traffic pairs will all be started or stopped."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "POST",
+        `/api/v1/trafficPair/${encodeURIComponent(params.action)}` +
+          `/${encodeURIComponent(params.testName)}`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `${params.action}ing all traffic pairs in testConfig '${params.testName}'`);
+    }
+  }
+);
+
+// =============================================================================
+// PAL7 TOOLS
+// =============================================================================
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s
+// Push configuration values to a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_command",
+  {
+    title: "Send Command to Pal7",
+    description:
+      "Push configuration values to a Pal7 device. " +
+      "POST /api/v1/pal7s. " +
+      "The 'request' field controls the action: " +
+      "'Push' stops, updates, and starts radios all in one; " +
+      "'WiFiEnable' enables/disables radios (use with enableRadios array); " +
+      "'WiFiSTAStart'/'WiFiSTAStop'/'WiFiSTAUpdate' individually start/stop/update a STA; " +
+      "'WiFiAPStart'/'WiFiAPStop'/'WiFiAPUpdate' individually start/stop/update an AP; " +
+      "'WiFiReplayUpdate' pushes a replay config; " +
+      "'WiFiReplayPlaybackStart'/'WiFiReplayPlaybackStop' start/stop replay playback; " +
+      "'StandByMode' puts the device in standby.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device (e.g. '172.16.27.1')."),
+      request: z.string().default("Push").describe(
+        "Request type: Push | WiFiEnable | WiFiSTAStart | WiFiSTAStop | WiFiSTAUpdate | " +
+        "WiFiAPStart | WiFiAPStop | WiFiAPUpdate | WiFiReplayUpdate | " +
+        "WiFiReplayPlaybackStart | WiFiReplayPlaybackStop | StandByMode"
+      ),
+      apStaMode: z.string().optional().describe("Mode: AP, STA, SNIFFER, REPLAY (or legacy MODE_AP, MODE_STA, etc.)"),
+      palRadio: z.string().optional().describe("Radio: RADIO_24, RADIO_5A, RADIO_5B, RADIO_6"),
+      bandwidth: z.string().optional().describe(
+        "BANDWIDTH_20_FIXED | BANDWIDTH_40_ADAPT | BANDWIDTH_80_ADAPT | BANDWIDTH_160_ADAPT | " +
+        "BANDWIDTH_240_ADAPT | BANDWIDTH_320_ADAPT | BANDWIDTH_8080_ADAPT | BANDWIDTH_ADAPT (STA only)"
+      ),
+      primaryChannel: z.number().optional().describe("Primary channel number."),
+      ssid: z.string().optional().describe("SSID to connect to or broadcast."),
+      password: z.string().optional().describe("WPA/WPA2/WPA3 password."),
+      security: z.string().optional().describe(
+        "SECURITY_NONE | SECURITY_WPA | SECURITY_WPA2 | SECURITY_WPA_WPA2_MIXED | " +
+        "SECURITY_WPA3 | SECURITY_WPA3_WPA2_MIXED | SECURITY_OWE (RADIO_6 only)"
+      ),
+      interface_: z.string().optional().describe(
+        "INTERFACE_B | INTERFACE_G | INTERFACE_A | INTERFACE_N | INTERFACE_AC | INTERFACE_AX | INTERFACE_BE"
+      ),
+      guardInterval: z.string().optional().describe(
+        "GUARD_0_4US | GUARD_0_8US | GUARD_1_6US | GUARD_3_2US | GUARD_ADAPT"
+      ),
+      streams: z.number().optional().describe("Number of spatial streams (1-8)."),
+      ipAddress: z.string().optional().describe("IPv4 address."),
+      ipGateway: z.string().optional().describe("IPv4 gateway."),
+      ipMode: z.string().optional().describe("IP_DHCP | IP_STATIC"),
+      ipNetmask: z.string().optional().describe("IPv4 netmask."),
+      ipAddressBridge: z.string().optional().describe("Bridge IPv4 address."),
+      ipGatewayBridge: z.string().optional().describe("Bridge IPv4 gateway."),
+      ipModeBridge: z.string().optional().describe("IP_DHCP | IP_STATIC for bridge."),
+      ipNetmaskBridge: z.string().optional().describe("Bridge IPv4 netmask."),
+      ipv6Address: z.string().optional().describe("IPv6 address."),
+      ipv6Gateway: z.string().optional().describe("IPv6 gateway."),
+      ipv6Mode: z.string().optional().describe("IP_DHCP | IP_STATIC for IPv6."),
+      ipv6AddressBridge: z.string().optional().describe("Bridge IPv6 address."),
+      ipv6GatewayBridge: z.string().optional().describe("Bridge IPv6 gateway."),
+      ipv6ModeBridge: z.string().optional().describe("IP_UNKNOWN | IP_DHCP | IP_STATIC for bridge IPv6."),
+      ipv6PrefixLength: z.number().optional().describe("IPv6 prefix length (e.g. 64)."),
+      ipv6PrefixLengthBridge: z.number().optional().describe("Bridge IPv6 prefix length."),
+      enableRadios: z.array(z.boolean()).optional().describe(
+        "Used with WiFiEnable request. Array of 5 booleans: [allDisabled, Radio24, Radio5A, Radio5B, Radio6]."
+      ),
+      radioEnabled: z.boolean().optional().describe("Enable or disable the radio."),
+      maxAMPDUFrameSize: z.string().optional().describe(
+        "FRAME_8192 | FRAME_16383 | FRAME_32767 | FRAME_65535 | FRAME_131071 | FRAME_262143 | FRAME_524287 | FRAME_1048575"
+      ),
+      ofdmaDLEnable: z.boolean().optional().describe("Enable OFDMA downlink."),
+      ofdmaULEnable: z.boolean().optional().describe("Enable OFDMA uplink."),
+      beamformerSUEnable: z.boolean().optional().describe("Enable SU beamformer."),
+      beamformerMUEnable: z.boolean().optional().describe("Enable MU beamformer."),
+      beamformeeSUEnable: z.boolean().optional().describe("Enable SU beamformee."),
+      beamformeeMUEnable: z.boolean().optional().describe("Enable MU beamformee."),
+      mloMemberEnable: z.boolean().optional().describe("Enable MLO member."),
+      mloMemberIndex: z.number().optional().describe("MLO member index."),
+      priority: z.string().optional().describe(
+        "PRIORITY_BACKGROUND | PRIORITY_BESTEFFORT | PRIORITY_VIDEO | PRIORITY_VOICE | PRIORITY_NOBACKOFF | PRIORITY_ADAPT"
+      ),
+      bssidMode: z.string().optional().describe("BSSID_FORCED | BSSID_PREFERRED | BSSID_DISABLED"),
+      bssid: z.string().optional().describe("BSSID to force or prefer."),
+      roamThreshold: z.number().optional().describe("Roam threshold in dBm."),
+      roamTargetThreshold: z.number().optional().describe("Roam target threshold in dBm."),
+      kEnable: z.boolean().optional().describe("Enable 802.11k."),
+      rFastTransitionEnable: z.boolean().optional().describe("Enable 802.11r fast transition."),
+      rOvertheDSEnable: z.boolean().optional().describe("Enable 802.11r over-the-DS."),
+      powerSaveEnable: z.boolean().optional().describe("Enable power save mode."),
+      uApsdEnable: z.boolean().optional().describe("Enable U-APSD."),
+      dfsEnable: z.boolean().optional().describe("Enable DFS."),
+      bridgeEnable: z.boolean().optional().describe("Enable bridge mode."),
+      wdsEnable: z.boolean().optional().describe("Enable WDS."),
+      captureEnable: z.boolean().optional().describe("Enable packet capture."),
+      filterManagementOnly: z.boolean().optional().describe("Filter management frames only."),
+      filterHeadersOnly: z.boolean().optional().describe("Filter headers only."),
+      channelScanMode: z.boolean().optional().describe("Enable channel scan mode."),
+      channelScanList: z.array(z.number()).optional().describe("List of channels to scan."),
+      txAtten: z.number().optional().describe("TX attenuation value."),
+      rate: z.number().optional().describe("TX rate (number for fixed, or RATE_ADAPT)."),
+      ctsRtsThreshold: z.number().optional().describe("CTS/RTS threshold in bytes (0-2347)."),
+      fragmentationThreshold: z.number().optional().describe("Fragmentation threshold in bytes (256-2346, even)."),
+      beaconInterval: z.number().optional().describe("Beacon interval in ms."),
+      netcatPort: z.number().optional().describe("Netcat port number."),
+      vEnable: z.boolean().optional().describe("Enable vSTAs."),
+      vLogging: z.boolean().optional().describe("Enable vSTA logging."),
+      vstaCount: z.number().optional().describe("Number of vSTAs."),
+      probeID: z.string().optional().describe("Probe ID alias (e.g. 'P7A_24')."),
+      alias: z.string().optional().describe("Device alias."),
+      certFilename: z.string().optional().describe("Certificate filename for 802.1x."),
+      radiusIdentity: z.string().optional().describe("RADIUS username for 802.1x."),
+      radiusPassword: z.string().optional().describe("RADIUS password for 802.1x."),
+      authServerIp: z.string().optional().describe("802.1x auth server IP."),
+      authServerPort: z.number().optional().describe("802.1x auth server port."),
+      authServerSecret: z.string().optional().describe("802.1x auth server secret."),
+      triggerOutMode: z.string().optional().describe("TMODE_DISABLE | TMODE_SCRIPT_ONLY | TMODE_SCRIPT_W_PACKETS"),
+      triggerOutPacketFilterMask: z.number().optional().describe("Trigger output packet filter mask."),
+      triggerOutScriptCmd: z.string().optional().describe("Trigger output script command."),
+      secondaryChannel_8080: z.number().optional().describe("Secondary channel for 80+80 MHz."),
+      inputFile: z.string().optional().describe("Input pcap file name for replay."),
+      inputFilePath: z.string().optional().describe("Full path to pcap file for replay (e.g. '/root/pcap/file.pcap')."),
+      replayMode: z.string().optional().describe("Replay mode: REPLAY_MODE_AS_CAPTURED."),
+      replaySource: z.string().optional().describe("Replay source: REPLAY_SOURCE_FILE_LOOP."),
+      replayAdvanced: z.boolean().optional().describe("Show advanced replay options."),
+      packetGapMicroseconds: z.number().optional().describe("Packet gap in microseconds (300 - max)."),
+      chainRXMask: z.number().optional().describe("RX chain mask."),
+      chainTXMask: z.number().optional().describe("TX chain mask."),
+      advRatesEnable: z.boolean().optional().describe("Enable advanced rates."),
+      kvrLoggingEnable: z.boolean().optional().describe("Enable KVR logging."),
+      baseMacAddress: z.string().optional().describe("Base MAC address."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const { ...body } = params;
+      const data = await apiRequest("POST", "/api/v1/pal7s", body);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `sending command to Pal7 ${params.managementAddr}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s/
+// Start/Stop pcap file replay on a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_replay",
+  {
+    title: "Start/Stop Pal7 Replay",
+    description:
+      "Start or stop pcap file replay on a Pal7 device. " +
+      "POST /api/v1/pal7s/. " +
+      "Use request='WiFiReplayPlaybackStart' to start or 'WiFiReplayPlaybackStop' to stop.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device (e.g. '172.16.27.1')."),
+      request: z.string().describe("WiFiReplayPlaybackStart | WiFiReplayPlaybackStop"),
+      palRadio: z.string().describe("Radio to use: RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+      epochMicroseconds: z.number().default(0).describe("Epoch microseconds offset. Use 0."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest("POST", "/api/v1/pal7s/", params);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `sending replay command to Pal7 ${params.managementAddr}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{managementAddr}/{request}
+// Send gRPC queries to a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_query",
+  {
+    title: "Query Pal7 Device",
+    description:
+      "Send a gRPC read query to a Pal7 device. " +
+      "GET /api/v1/pal7s/{managementAddr}/{request}.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device."),
+      request: z.enum([
+        "ApiVersionRead",
+        "SystemConfigRead",
+        "SystemEtcHostsRead",
+        "SystemReset",
+        "WiFiRadioStateRead",
+      ]).describe("Query request type."),
+      response_format: z.enum(["markdown", "json"]).default("json").describe(
+        "'json' returns raw payload; 'markdown' returns a formatted table."
+      ),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}/${encodeURIComponent(params.request)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      return { content: [{ type: "text" as const, text: formatMarkdown(data) }] };
+    } catch (err) {
+      return fail(err, `querying Pal7 ${params.managementAddr} with request '${params.request}'`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{managementAddr}/{request}/{palRadio}/{apStaMode}
+// Get Pal7 configurations based on radio & apStaMode
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_query_with_mode",
+  {
+    title: "Query Pal7 Device by Radio and Mode",
+    description:
+      "Get Pal7 configurations based on radio and apStaMode. " +
+      "GET /api/v1/pal7s/{managementAddr}/{request}/{palRadio}/{apStaMode}. " +
+      "Use request='ReadValues' to get all STA/AP/sniffer/replay configurations for the specified radio and mode. " +
+      "Use request='WiFiSTAScan' to get available WiFi connections (device must be in STA mode).",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device."),
+      request: z.string().describe("ReadValues | WiFiSTAScan"),
+      palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+      apStaMode: z.string().describe("AP | STA | SNIFFER | REPLAY (or legacy MODE_AP, MODE_STA, etc.)"),
+      response_format: z.enum(["markdown", "json"]).default("json").describe(
+        "'json' returns raw payload; 'markdown' returns a formatted table."
+      ),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}` +
+        `/${encodeURIComponent(params.request)}` +
+        `/${encodeURIComponent(params.palRadio)}` +
+        `/${encodeURIComponent(params.apStaMode)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      return { content: [{ type: "text" as const, text: formatMarkdown(data) }] };
+    } catch (err) {
+      return fail(err, `querying Pal7 ${params.managementAddr} radio=${params.palRadio} mode=${params.apStaMode}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{bandwidth}/{primaryChannel}/{palRadio}/{apStaMode}/{interface_}
+// Get lists of legal puncture channels
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_get_puncture_channels",
+  {
+    title: "Get Legal Puncture Channels for Pal7",
+    description:
+      "Get lists of legal puncture channels for a given bandwidth, channel, radio, mode, and interface. " +
+      "GET /api/v1/pal7s/{bandwidth}/{primaryChannel}/{palRadio}/{apStaMode}/{interface_}. " +
+      "Supports only 80, 160, and 320 MHz bandwidths. 320 MHz is 6 GHz only. " +
+      "Only INTERFACE_BE (802.11be) is supported. Only AP mode is supported.",
+    inputSchema: z.object({
+      bandwidth: z.string().describe("Bandwidth in MHz: 80 | 160 | 320"),
+      primaryChannel: z.number().describe("Primary channel number."),
+      palRadio: z.string().describe("5 GHz or 6 GHz radio only: RADIO_5A | RADIO_5B | RADIO_6"),
+      apStaMode: z.string().describe("AP mode only."),
+      interface_: z.string().describe("INTERFACE_BE only (802.11be)."),
+      response_format: z.enum(["markdown", "json"]).default("json").describe(
+        "'json' returns raw payload; 'markdown' returns a formatted table."
+      ),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/pal7s/${encodeURIComponent(params.bandwidth)}` +
+        `/${encodeURIComponent(String(params.primaryChannel))}` +
+        `/${encodeURIComponent(params.palRadio)}` +
+        `/${encodeURIComponent(params.apStaMode)}` +
+        `/${encodeURIComponent(params.interface_)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      return { content: [{ type: "text" as const, text: formatMarkdown(data) }] };
+    } catch (err) {
+      return fail(err, `getting puncture channels for bw=${params.bandwidth} ch=${params.primaryChannel}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s/bss/
+// Send WiFiAPBeaconReport, WiFiAPLinkReport, or WiFiAPBssTransition to a Pal7
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_bss_command",
+  {
+    title: "Send BSS Command to Pal7 AP",
+    description:
+      "Send a BSS-related command to a Pal7 AP: beacon report, link report, or BSS transition. " +
+      "POST /api/v1/pal7s/bss/. " +
+      "request must be one of: WiFiAPBeaconReport | WiFiAPLinkReport | WiFiAPBssTransition.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device."),
+      request: z.enum(["WiFiAPBeaconReport", "WiFiAPLinkReport", "WiFiAPBssTransition"]).describe(
+        "BSS request type."
+      ),
+      palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+      staMacAddress: z.string().optional().describe("STA MAC address to target (e.g. '14:f6:d8:43:69:67')."),
+      regClass: z.number().optional().describe("Regulatory class."),
+      channel: z.number().optional().describe("Channel number."),
+      duration: z.number().optional().describe("Duration in ms."),
+      mode: z.number().optional().describe("Mode value."),
+      matchSsid: z.number().optional().describe("Match SSID flag (0 or 1)."),
+      reportDetail: z.number().optional().describe("Report detail level."),
+      requestIe: z.number().optional().describe("Request IE flag."),
+      channelReport: z.number().optional().describe("Channel report flag."),
+      candidateList: z.string().optional().describe("Candidate BSSID list (e.g. '11:22:33:64:35:2c')."),
+      candidateListIncluded: z.number().optional().describe("Include candidate list flag (0 or 1)."),
+      disassocImminent: z.number().optional().describe("Disassociation imminent value."),
+      disassocTimer: z.number().optional().describe("Disassociation timer in ms."),
+      validInterval: z.number().optional().describe("Valid interval."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest("POST", "/api/v1/pal7s/bss/", params);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `sending BSS command '${params.request}' to Pal7 ${params.managementAddr}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/pal7s/{managementAddr}/{request}/{palRadio}
+// Enable/Disable Pal7 VSTAs
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_vsta_update",
+  {
+    title: "Enable/Disable Pal7 VSTAs",
+    description:
+      "Enable or disable virtual STAs (vSTAs) on a Pal7 device. " +
+      "PUT /api/v1/pal7s/{managementAddr}/WiFiVSTAEnableUpdate/{palRadio}. " +
+      "Pass an array of 0s (disable) and 1s (enable) in vstaArray, one entry per vSTA.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device."),
+      palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+      vstaArray: z.array(z.number()).describe(
+        "Array of vSTA enable/disable values. 0 = disable, 1 = enable. One entry per vSTA."
+      ),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "PUT",
+        `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}/WiFiVSTAEnableUpdate/${encodeURIComponent(params.palRadio)}`,
+        { vstaArray: params.vstaArray }
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `updating vSTAs on Pal7 ${params.managementAddr} radio=${params.palRadio}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{managementAddr}/{request}/{palRadio}
+// Get Pal7 vSTAs enabled/disabled status
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_vsta_read",
+  {
+    title: "Read Pal7 vSTA Enable Status",
+    description:
+      "Get the enabled/disabled status of vSTAs on a Pal7 device. " +
+      "GET /api/v1/pal7s/{managementAddr}/WiFiVSTAEnableRead/{palRadio}.",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device."),
+      palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+      response_format: z.enum(["markdown", "json"]).default("json").describe(
+        "'json' returns raw payload; 'markdown' returns a formatted table."
+      ),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "GET",
+        `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}/WiFiVSTAEnableRead/${encodeURIComponent(params.palRadio)}`
+      );
+      if (params.response_format === "json") return ok(data);
+      return { content: [{ type: "text" as const, text: formatMarkdown(data) }] };
+    } catch (err) {
+      return fail(err, `reading vSTA status on Pal7 ${params.managementAddr} radio=${params.palRadio}`);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s/{request}
+// Send a system command to a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_pal7_system_command",
+  {
+    title: "Send System Command to Pal7",
+    description:
+      "Send a system-level shell command to a Pal7 device. " +
+      "POST /api/v1/pal7s/SystemCommand. " +
+      "Allows running arbitrary shell commands on the device (e.g. 'iw dev ath1 info').",
+    inputSchema: z.object({
+      managementAddr: z.string().describe("Management address of the Pal7 device (e.g. '172.16.27.22')."),
+      command: z.string().describe("The command to run (e.g. 'iw')."),
+      arguments: z.array(z.string()).optional().describe(
+        "Array of space-delimited arguments (e.g. ['dev', 'ath1', 'info'])."
+      ),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const body = {
+        request: "SystemCommand",
+        managementAddr: params.managementAddr,
+        command: params.command,
+        arguments: params.arguments ?? [],
+      };
+      const data = await apiRequest("POST", "/api/v1/pal7s/SystemCommand", body);
+      return ok(data);
+    } catch (err) {
+      return fail(err, `sending system command '${params.command}' to Pal7 ${params.managementAddr}`);
+    }
+  }
+);
+
+// TEST CONFIG TOOLS
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/testConfigs/initialize/{testName}
+// Configure all instruments for a given autotest
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_initialize_test_config",
+  {
+    title: "Initialize Test Config",
+    description:
+      "Configure all the instruments for a given autotest. " +
+      "POST /api/v1/testConfigs/initialize/{testName}.",
+    inputSchema: z.object({
+      testName: z.string().describe("The name of the test config to initialize."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "POST",
+        `/api/v1/testConfigs/initialize/${encodeURIComponent(params.testName)}`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `initializing test config '${params.testName}'`);
+    }
+  }
+);
+
+//HIDDEN APIs TO CONTROL THE DASHBOARD.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/dashboardTraffic/set/started
+// Start the traffic on the dashboard.  
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_dashboard_traffic_start",
+  {
+    title: "Start Traffic on the Dashboard",
+    description:
+      "Start Traffic on the Octobox Dashboard. " +
+      "PUT /api/v1/dashboardTraffic/set/started. " +
+      "No parameters.",
+    inputSchema: z.object({
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "PUT",
+        `/api/v1/dashboardTraffic/set/started`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `starting the traffic on the dashboard`);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/dashboardTraffic/set/stopped
+// Stop the traffic on the dashboard.  
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool(
+  "octobox_dashboard_traffic_stop",
+  {
+    title: "Stop Traffic on the Dashboard",
+    description:
+      "Stop Traffic on the Octobox Dashboard. " +
+      "PUT /api/v1/dashboardTraffic/set/stopped. " +
+      "No parameters.",
+    inputSchema: z.object({
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async (params) => {
+    try {
+      const data = await apiRequest(
+        "PUT",
+        `/api/v1/dashboardTraffic/set/stopped`
+      );
+      return ok(data);
+    } catch (err) {
+      return fail(err, `stopping the traffic on the dashboard`);
+    }
+  }
+);
+
+
+
+// ── Transport ─────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("octobox-mcp-server running (stdio) — all /api/v1/attenuators endpoints registered");
+}
+
+main().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});

@@ -1,0 +1,14 @@
+Here's a summary of what changed and what to deploy:
+index.ts changes (two additions only, nothing else touched):
+
+Two new imports at the top — execFile from child_process and resolve from path
+A new section just before the transport block containing:
+
+BRIDGE_PATH constant — defaults to ./bridge.py but can be overridden with the SD2_BRIDGE_PATH env var
+callSd2Utils() helper — handles JSON arg encoding, process spawning, and clean error surfacing
+sd2_wait_for_association tool registration with all 6 parameters properly typed
+
+
+
+bridge.py — drop this in the same directory as index.ts (or wherever SD2_BRIDGE_PATH points), alongside sd2Utils.py. It accepts any function name as argv[1] so adding more tools later only requires changes to index.ts, never to the bridge itself.
+One thing to be aware of: waitForAssociation reads from paramsDict and globalsfile which are module-level globals in sd2Utils.py — those need to be initialized before the function is called, the same way your existing Python scripts do it. The bridge just calls the function; initialization is the caller's responsibility.

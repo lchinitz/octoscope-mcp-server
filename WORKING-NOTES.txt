@@ -4,3 +4,7 @@
    This makes a version of index.js in the /dist directory.  I think moved that up (copied it actually) to the main directory.
 
 * Note that when the LLM created the new .ts file, it actually put in the wrong IP address for the server, so things failed.  I had to fix that in both the .ts and .js files.
+
+* On new laptop, find claude_desktop_config in C:\Users\leigchin\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude
+     And the index.js should be copied to C://Users/leigchin/Documents/Codes/octoscope-mcs-server/
+     Direct copy:  cp index.js  /mnt/c/Users/leigchin/Documents/Codes/octoscope-mcp-server/

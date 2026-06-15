@@ -1,8 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { execFile } from "child_process";
+import { resolve } from "path";
 // ── Configuration ─────────────────────────────────────────────────────────────
-const OCTOBOX_BASE_URL = process.env.OCTOBOX_BASE_URL ?? "http://10.160.81.80:4000";
+//Andy, Texas
+const OCTOBOX_BASE_URL = process.env.OCTOBOX_BASE_URL ?? "http://10.160.55.30:4000";
+//SM3
+//const OCTOBOX_BASE_URL =
+//  process.env.OCTOBOX_BASE_URL ?? "http://10.160.81.80:4000";			       
 // ── API client ────────────────────────────────────────────────────────────────
 async function apiRequest(method, path, body) {
     const url = `${OCTOBOX_BASE_URL}${path}`;
@@ -921,6 +927,881 @@ server.registerTool("octobox_control_all_traffic_pairs", {
     }
     catch (err) {
         return fail(err, `${params.action}ing all traffic pairs in testConfig '${params.testName}'`);
+    }
+});
+// =============================================================================
+// PAL7 TOOLS
+// =============================================================================
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s
+// Push configuration values to a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_command", {
+    title: "Send Command to Pal7",
+    description: "Push configuration values to a Pal7 device. " +
+        "POST /api/v1/pal7s. " +
+        "The 'request' field controls the action: " +
+        "'Push' stops, updates, and starts radios all in one; " +
+        "'WiFiEnable' enables/disables radios (use with enableRadios array); " +
+        "'WiFiSTAStart'/'WiFiSTAStop'/'WiFiSTAUpdate' individually start/stop/update a STA; " +
+        "'WiFiAPStart'/'WiFiAPStop'/'WiFiAPUpdate' individually start/stop/update an AP; " +
+        "'WiFiReplayUpdate' pushes a replay config; " +
+        "'WiFiReplayPlaybackStart'/'WiFiReplayPlaybackStop' start/stop replay playback; " +
+        "'StandByMode' puts the device in standby.",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device (e.g. '172.16.27.1')."),
+        request: z.string().default("Push").describe("Request type: Push | WiFiEnable | WiFiSTAStart | WiFiSTAStop | WiFiSTAUpdate | " +
+            "WiFiAPStart | WiFiAPStop | WiFiAPUpdate | WiFiReplayUpdate | " +
+            "WiFiReplayPlaybackStart | WiFiReplayPlaybackStop | StandByMode"),
+        apStaMode: z.string().optional().describe("Mode: AP, STA, SNIFFER, REPLAY (or legacy MODE_AP, MODE_STA, etc.)"),
+        palRadio: z.string().optional().describe("Radio: RADIO_24, RADIO_5A, RADIO_5B, RADIO_6"),
+        bandwidth: z.string().optional().describe("BANDWIDTH_20_FIXED | BANDWIDTH_40_ADAPT | BANDWIDTH_80_ADAPT | BANDWIDTH_160_ADAPT | " +
+            "BANDWIDTH_240_ADAPT | BANDWIDTH_320_ADAPT | BANDWIDTH_8080_ADAPT | BANDWIDTH_ADAPT (STA only)"),
+        primaryChannel: z.number().optional().describe("Primary channel number."),
+        ssid: z.string().optional().describe("SSID to connect to or broadcast."),
+        password: z.string().optional().describe("WPA/WPA2/WPA3 password."),
+        security: z.string().optional().describe("SECURITY_NONE | SECURITY_WPA | SECURITY_WPA2 | SECURITY_WPA_WPA2_MIXED | " +
+            "SECURITY_WPA3 | SECURITY_WPA3_WPA2_MIXED | SECURITY_OWE (RADIO_6 only)"),
+        interface_: z.string().optional().describe("INTERFACE_B | INTERFACE_G | INTERFACE_A | INTERFACE_N | INTERFACE_AC | INTERFACE_AX | INTERFACE_BE"),
+        guardInterval: z.string().optional().describe("GUARD_0_4US | GUARD_0_8US | GUARD_1_6US | GUARD_3_2US | GUARD_ADAPT"),
+        streams: z.number().optional().describe("Number of spatial streams (1-8)."),
+        ipAddress: z.string().optional().describe("IPv4 address."),
+        ipGateway: z.string().optional().describe("IPv4 gateway."),
+        ipMode: z.string().optional().describe("IP_DHCP | IP_STATIC"),
+        ipNetmask: z.string().optional().describe("IPv4 netmask."),
+        ipAddressBridge: z.string().optional().describe("Bridge IPv4 address."),
+        ipGatewayBridge: z.string().optional().describe("Bridge IPv4 gateway."),
+        ipModeBridge: z.string().optional().describe("IP_DHCP | IP_STATIC for bridge."),
+        ipNetmaskBridge: z.string().optional().describe("Bridge IPv4 netmask."),
+        ipv6Address: z.string().optional().describe("IPv6 address."),
+        ipv6Gateway: z.string().optional().describe("IPv6 gateway."),
+        ipv6Mode: z.string().optional().describe("IP_DHCP | IP_STATIC for IPv6."),
+        ipv6AddressBridge: z.string().optional().describe("Bridge IPv6 address."),
+        ipv6GatewayBridge: z.string().optional().describe("Bridge IPv6 gateway."),
+        ipv6ModeBridge: z.string().optional().describe("IP_UNKNOWN | IP_DHCP | IP_STATIC for bridge IPv6."),
+        ipv6PrefixLength: z.number().optional().describe("IPv6 prefix length (e.g. 64)."),
+        ipv6PrefixLengthBridge: z.number().optional().describe("Bridge IPv6 prefix length."),
+        enableRadios: z.array(z.boolean()).optional().describe("Used with WiFiEnable request. Array of 5 booleans: [allDisabled, Radio24, Radio5A, Radio5B, Radio6]."),
+        radioEnabled: z.boolean().optional().describe("Enable or disable the radio."),
+        maxAMPDUFrameSize: z.string().optional().describe("FRAME_8192 | FRAME_16383 | FRAME_32767 | FRAME_65535 | FRAME_131071 | FRAME_262143 | FRAME_524287 | FRAME_1048575"),
+        ofdmaDLEnable: z.boolean().optional().describe("Enable OFDMA downlink."),
+        ofdmaULEnable: z.boolean().optional().describe("Enable OFDMA uplink."),
+        beamformerSUEnable: z.boolean().optional().describe("Enable SU beamformer."),
+        beamformerMUEnable: z.boolean().optional().describe("Enable MU beamformer."),
+        beamformeeSUEnable: z.boolean().optional().describe("Enable SU beamformee."),
+        beamformeeMUEnable: z.boolean().optional().describe("Enable MU beamformee."),
+        mloMemberEnable: z.boolean().optional().describe("Enable MLO member."),
+        mloMemberIndex: z.number().optional().describe("MLO member index."),
+        priority: z.string().optional().describe("PRIORITY_BACKGROUND | PRIORITY_BESTEFFORT | PRIORITY_VIDEO | PRIORITY_VOICE | PRIORITY_NOBACKOFF | PRIORITY_ADAPT"),
+        bssidMode: z.string().optional().describe("BSSID_FORCED | BSSID_PREFERRED | BSSID_DISABLED"),
+        bssid: z.string().optional().describe("BSSID to force or prefer."),
+        roamThreshold: z.number().optional().describe("Roam threshold in dBm."),
+        roamTargetThreshold: z.number().optional().describe("Roam target threshold in dBm."),
+        kEnable: z.boolean().optional().describe("Enable 802.11k."),
+        rFastTransitionEnable: z.boolean().optional().describe("Enable 802.11r fast transition."),
+        rOvertheDSEnable: z.boolean().optional().describe("Enable 802.11r over-the-DS."),
+        powerSaveEnable: z.boolean().optional().describe("Enable power save mode."),
+        uApsdEnable: z.boolean().optional().describe("Enable U-APSD."),
+        dfsEnable: z.boolean().optional().describe("Enable DFS."),
+        bridgeEnable: z.boolean().optional().describe("Enable bridge mode."),
+        wdsEnable: z.boolean().optional().describe("Enable WDS."),
+        captureEnable: z.boolean().optional().describe("Enable packet capture."),
+        filterManagementOnly: z.boolean().optional().describe("Filter management frames only."),
+        filterHeadersOnly: z.boolean().optional().describe("Filter headers only."),
+        channelScanMode: z.boolean().optional().describe("Enable channel scan mode."),
+        channelScanList: z.array(z.number()).optional().describe("List of channels to scan."),
+        txAtten: z.number().optional().describe("TX attenuation value."),
+        rate: z.number().optional().describe("TX rate (number for fixed, or RATE_ADAPT)."),
+        ctsRtsThreshold: z.number().optional().describe("CTS/RTS threshold in bytes (0-2347)."),
+        fragmentationThreshold: z.number().optional().describe("Fragmentation threshold in bytes (256-2346, even)."),
+        beaconInterval: z.number().optional().describe("Beacon interval in ms."),
+        netcatPort: z.number().optional().describe("Netcat port number."),
+        vEnable: z.boolean().optional().describe("Enable vSTAs."),
+        vLogging: z.boolean().optional().describe("Enable vSTA logging."),
+        vstaCount: z.number().optional().describe("Number of vSTAs."),
+        probeID: z.string().optional().describe("Probe ID alias (e.g. 'P7A_24')."),
+        alias: z.string().optional().describe("Device alias."),
+        certFilename: z.string().optional().describe("Certificate filename for 802.1x."),
+        radiusIdentity: z.string().optional().describe("RADIUS username for 802.1x."),
+        radiusPassword: z.string().optional().describe("RADIUS password for 802.1x."),
+        authServerIp: z.string().optional().describe("802.1x auth server IP."),
+        authServerPort: z.number().optional().describe("802.1x auth server port."),
+        authServerSecret: z.string().optional().describe("802.1x auth server secret."),
+        triggerOutMode: z.string().optional().describe("TMODE_DISABLE | TMODE_SCRIPT_ONLY | TMODE_SCRIPT_W_PACKETS"),
+        triggerOutPacketFilterMask: z.number().optional().describe("Trigger output packet filter mask."),
+        triggerOutScriptCmd: z.string().optional().describe("Trigger output script command."),
+        secondaryChannel_8080: z.number().optional().describe("Secondary channel for 80+80 MHz."),
+        inputFile: z.string().optional().describe("Input pcap file name for replay."),
+        inputFilePath: z.string().optional().describe("Full path to pcap file for replay (e.g. '/root/pcap/file.pcap')."),
+        replayMode: z.string().optional().describe("Replay mode: REPLAY_MODE_AS_CAPTURED."),
+        replaySource: z.string().optional().describe("Replay source: REPLAY_SOURCE_FILE_LOOP."),
+        replayAdvanced: z.boolean().optional().describe("Show advanced replay options."),
+        packetGapMicroseconds: z.number().optional().describe("Packet gap in microseconds (300 - max)."),
+        chainRXMask: z.number().optional().describe("RX chain mask."),
+        chainTXMask: z.number().optional().describe("TX chain mask."),
+        advRatesEnable: z.boolean().optional().describe("Enable advanced rates."),
+        kvrLoggingEnable: z.boolean().optional().describe("Enable KVR logging."),
+        baseMacAddress: z.string().optional().describe("Base MAC address."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const { ...body } = params;
+        const data = await apiRequest("POST", "/api/v1/pal7s", body);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `sending command to Pal7 ${params.managementAddr}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s/
+// Start/Stop pcap file replay on a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_replay", {
+    title: "Start/Stop Pal7 Replay",
+    description: "Start or stop pcap file replay on a Pal7 device. " +
+        "POST /api/v1/pal7s/. " +
+        "Use request='WiFiReplayPlaybackStart' to start or 'WiFiReplayPlaybackStop' to stop.",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device (e.g. '172.16.27.1')."),
+        request: z.string().describe("WiFiReplayPlaybackStart | WiFiReplayPlaybackStop"),
+        palRadio: z.string().describe("Radio to use: RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+        epochMicroseconds: z.number().default(0).describe("Epoch microseconds offset. Use 0."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await apiRequest("POST", "/api/v1/pal7s/", params);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `sending replay command to Pal7 ${params.managementAddr}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{managementAddr}/{request}
+// Send gRPC queries to a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_query", {
+    title: "Query Pal7 Device",
+    description: "Send a gRPC read query to a Pal7 device. " +
+        "GET /api/v1/pal7s/{managementAddr}/{request}.",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device."),
+        request: z.enum([
+            "ApiVersionRead",
+            "SystemConfigRead",
+            "SystemEtcHostsRead",
+            "SystemReset",
+            "WiFiRadioStateRead",
+        ]).describe("Query request type."),
+        response_format: z.enum(["markdown", "json"]).default("json").describe("'json' returns raw payload; 'markdown' returns a formatted table."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("GET", `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}/${encodeURIComponent(params.request)}`);
+        if (params.response_format === "json")
+            return ok(data);
+        return { content: [{ type: "text", text: formatMarkdown(data) }] };
+    }
+    catch (err) {
+        return fail(err, `querying Pal7 ${params.managementAddr} with request '${params.request}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{managementAddr}/{request}/{palRadio}/{apStaMode}
+// Get Pal7 configurations based on radio & apStaMode
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_query_with_mode", {
+    title: "Query Pal7 Device by Radio and Mode",
+    description: "Get Pal7 configurations based on radio and apStaMode. " +
+        "GET /api/v1/pal7s/{managementAddr}/{request}/{palRadio}/{apStaMode}. " +
+        "Use request='ReadValues' to get all STA/AP/sniffer/replay configurations for the specified radio and mode. " +
+        "Use request='WiFiSTAScan' to get available WiFi connections (device must be in STA mode).",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device."),
+        request: z.string().describe("ReadValues | WiFiSTAScan"),
+        palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+        apStaMode: z.string().describe("AP | STA | SNIFFER | REPLAY (or legacy MODE_AP, MODE_STA, etc.)"),
+        response_format: z.enum(["markdown", "json"]).default("json").describe("'json' returns raw payload; 'markdown' returns a formatted table."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("GET", `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}` +
+            `/${encodeURIComponent(params.request)}` +
+            `/${encodeURIComponent(params.palRadio)}` +
+            `/${encodeURIComponent(params.apStaMode)}`);
+        if (params.response_format === "json")
+            return ok(data);
+        return { content: [{ type: "text", text: formatMarkdown(data) }] };
+    }
+    catch (err) {
+        return fail(err, `querying Pal7 ${params.managementAddr} radio=${params.palRadio} mode=${params.apStaMode}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{bandwidth}/{primaryChannel}/{palRadio}/{apStaMode}/{interface_}
+// Get lists of legal puncture channels
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_get_puncture_channels", {
+    title: "Get Legal Puncture Channels for Pal7",
+    description: "Get lists of legal puncture channels for a given bandwidth, channel, radio, mode, and interface. " +
+        "GET /api/v1/pal7s/{bandwidth}/{primaryChannel}/{palRadio}/{apStaMode}/{interface_}. " +
+        "Supports only 80, 160, and 320 MHz bandwidths. 320 MHz is 6 GHz only. " +
+        "Only INTERFACE_BE (802.11be) is supported. Only AP mode is supported.",
+    inputSchema: z.object({
+        bandwidth: z.string().describe("Bandwidth in MHz: 80 | 160 | 320"),
+        primaryChannel: z.number().describe("Primary channel number."),
+        palRadio: z.string().describe("5 GHz or 6 GHz radio only: RADIO_5A | RADIO_5B | RADIO_6"),
+        apStaMode: z.string().describe("AP mode only."),
+        interface_: z.string().describe("INTERFACE_BE only (802.11be)."),
+        response_format: z.enum(["markdown", "json"]).default("json").describe("'json' returns raw payload; 'markdown' returns a formatted table."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("GET", `/api/v1/pal7s/${encodeURIComponent(params.bandwidth)}` +
+            `/${encodeURIComponent(String(params.primaryChannel))}` +
+            `/${encodeURIComponent(params.palRadio)}` +
+            `/${encodeURIComponent(params.apStaMode)}` +
+            `/${encodeURIComponent(params.interface_)}`);
+        if (params.response_format === "json")
+            return ok(data);
+        return { content: [{ type: "text", text: formatMarkdown(data) }] };
+    }
+    catch (err) {
+        return fail(err, `getting puncture channels for bw=${params.bandwidth} ch=${params.primaryChannel}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s/bss/
+// Send WiFiAPBeaconReport, WiFiAPLinkReport, or WiFiAPBssTransition to a Pal7
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_bss_command", {
+    title: "Send BSS Command to Pal7 AP",
+    description: "Send a BSS-related command to a Pal7 AP: beacon report, link report, or BSS transition. " +
+        "POST /api/v1/pal7s/bss/. " +
+        "request must be one of: WiFiAPBeaconReport | WiFiAPLinkReport | WiFiAPBssTransition.",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device."),
+        request: z.enum(["WiFiAPBeaconReport", "WiFiAPLinkReport", "WiFiAPBssTransition"]).describe("BSS request type."),
+        palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+        staMacAddress: z.string().optional().describe("STA MAC address to target (e.g. '14:f6:d8:43:69:67')."),
+        regClass: z.number().optional().describe("Regulatory class."),
+        channel: z.number().optional().describe("Channel number."),
+        duration: z.number().optional().describe("Duration in ms."),
+        mode: z.number().optional().describe("Mode value."),
+        matchSsid: z.number().optional().describe("Match SSID flag (0 or 1)."),
+        reportDetail: z.number().optional().describe("Report detail level."),
+        requestIe: z.number().optional().describe("Request IE flag."),
+        channelReport: z.number().optional().describe("Channel report flag."),
+        candidateList: z.string().optional().describe("Candidate BSSID list (e.g. '11:22:33:64:35:2c')."),
+        candidateListIncluded: z.number().optional().describe("Include candidate list flag (0 or 1)."),
+        disassocImminent: z.number().optional().describe("Disassociation imminent value."),
+        disassocTimer: z.number().optional().describe("Disassociation timer in ms."),
+        validInterval: z.number().optional().describe("Valid interval."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await apiRequest("POST", "/api/v1/pal7s/bss/", params);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `sending BSS command '${params.request}' to Pal7 ${params.managementAddr}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/pal7s/{managementAddr}/{request}/{palRadio}
+// Enable/Disable Pal7 VSTAs
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_vsta_update", {
+    title: "Enable/Disable Pal7 VSTAs",
+    description: "Enable or disable virtual STAs (vSTAs) on a Pal7 device. " +
+        "PUT /api/v1/pal7s/{managementAddr}/WiFiVSTAEnableUpdate/{palRadio}. " +
+        "Pass an array of 0s (disable) and 1s (enable) in vstaArray, one entry per vSTA.",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device."),
+        palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+        vstaArray: z.array(z.number()).describe("Array of vSTA enable/disable values. 0 = disable, 1 = enable. One entry per vSTA."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("PUT", `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}/WiFiVSTAEnableUpdate/${encodeURIComponent(params.palRadio)}`, { vstaArray: params.vstaArray });
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `updating vSTAs on Pal7 ${params.managementAddr} radio=${params.palRadio}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/pal7s/{managementAddr}/{request}/{palRadio}
+// Get Pal7 vSTAs enabled/disabled status
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_vsta_read", {
+    title: "Read Pal7 vSTA Enable Status",
+    description: "Get the enabled/disabled status of vSTAs on a Pal7 device. " +
+        "GET /api/v1/pal7s/{managementAddr}/WiFiVSTAEnableRead/{palRadio}.",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device."),
+        palRadio: z.string().describe("RADIO_24 | RADIO_5A | RADIO_5B | RADIO_6"),
+        response_format: z.enum(["markdown", "json"]).default("json").describe("'json' returns raw payload; 'markdown' returns a formatted table."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("GET", `/api/v1/pal7s/${encodeURIComponent(params.managementAddr)}/WiFiVSTAEnableRead/${encodeURIComponent(params.palRadio)}`);
+        if (params.response_format === "json")
+            return ok(data);
+        return { content: [{ type: "text", text: formatMarkdown(data) }] };
+    }
+    catch (err) {
+        return fail(err, `reading vSTA status on Pal7 ${params.managementAddr} radio=${params.palRadio}`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/pal7s/{request}
+// Send a system command to a Pal7 device
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_pal7_system_command", {
+    title: "Send System Command to Pal7",
+    description: "Send a system-level shell command to a Pal7 device. " +
+        "POST /api/v1/pal7s/SystemCommand. " +
+        "Allows running arbitrary shell commands on the device (e.g. 'iw dev ath1 info').",
+    inputSchema: z.object({
+        managementAddr: z.string().describe("Management address of the Pal7 device (e.g. '172.16.27.22')."),
+        command: z.string().describe("The command to run (e.g. 'iw')."),
+        arguments: z.array(z.string()).optional().describe("Array of space-delimited arguments (e.g. ['dev', 'ath1', 'info'])."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const body = {
+            request: "SystemCommand",
+            managementAddr: params.managementAddr,
+            command: params.command,
+            arguments: params.arguments ?? [],
+        };
+        const data = await apiRequest("POST", "/api/v1/pal7s/SystemCommand", body);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `sending system command '${params.command}' to Pal7 ${params.managementAddr}`);
+    }
+});
+// TEST CONFIG TOOLS
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/testConfigs/initialize/{testName}
+// Configure all instruments for a given autotest
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_initialize_test_config", {
+    title: "Initialize Test Config",
+    description: "Configure all the instruments for a given autotest. " +
+        "POST /api/v1/testConfigs/initialize/{testName}.",
+    inputSchema: z.object({
+        testName: z.string().describe("The name of the test config to initialize."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await apiRequest("POST", `/api/v1/testConfigs/initialize/${encodeURIComponent(params.testName)}`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `initializing test config '${params.testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/testConfigs
+// Create a new TestConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_create_test_config", {
+    title: "Create Test Config",
+    description: "Create a new TestConfig. " +
+        "POST /api/v1/testConfigs. " +
+        "Returns 201 on success, 206 if created with warnings, 400 if it already exists.",
+    inputSchema: z.object({
+        name: z.string().describe("Unique name for the testConfig (e.g. 'rvr_test')."),
+        model: z.string().optional().describe("User-provided model field (default: '-')."),
+        revision: z.string().optional().describe("User-defined revision field (default: '-')."),
+        description: z.string().optional().describe("User-defined description."),
+        rvrMode: z.enum(["Static", "RvR", "RvRvO", "RvOvR", "RvRwR"]).optional()
+            .describe("RvR mode (default: 'RvR')."),
+        stepDuration: z.number().int().min(1).optional()
+            .describe("Duration per attenuation step in seconds (min: 1, default: 60)."),
+        trainingInterval: z.number().int().min(0).optional()
+            .describe("Training duration before each step, 0 to stepDuration (default: 2)."),
+        step: z.number().min(1).max(90).optional()
+            .describe("Attenuation change per step, 1–90 in 0.5 dB increments."),
+        synchroSnifferCapturing: z.boolean().optional()
+            .describe("Enable synchroSniffer capturing (default: false)."),
+        externalDataInterfaceEnable: z.string().optional()
+            .describe("Enable external data interface (default: 'false')."),
+        wiresharkHost: z.string().optional()
+            .describe("IP address hosting Wireshark (e.g. '172.16.22.4')."),
+        quadAttens: z.array(z.record(z.unknown())).optional()
+            .describe("QuadAtten settings array."),
+        virtualAttens: z.array(z.record(z.unknown())).optional()
+            .describe("Virtual QuadAtten settings array."),
+        mpes: z.array(z.record(z.unknown())).optional()
+            .describe("MPE settings array."),
+        virtualMpes: z.array(z.record(z.unknown())).optional()
+            .describe("Virtual MPE settings array."),
+        pal6s: z.array(z.record(z.unknown())).optional()
+            .describe("Pal6 configuration settings array."),
+        pal7s: z.array(z.record(z.unknown())).optional()
+            .describe("Pal7 configuration settings array."),
+        staPals: z.array(z.record(z.unknown())).optional()
+            .describe("STAPal configuration settings array."),
+        staPal7s: z.array(z.record(z.unknown())).optional()
+            .describe("STAPal7 configuration settings array."),
+        trafficPairs: z.array(z.record(z.unknown())).optional()
+            .describe("TrafficPair settings array."),
+        synchroSniffers: z.array(z.record(z.unknown())).optional()
+            .describe("synchroSniffer settings array."),
+        snifferDisplay: z.array(z.record(z.unknown())).optional()
+            .describe("snifferDisplay settings array."),
+        turntables: z.array(z.record(z.unknown())).optional()
+            .describe("Turntable settings array."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await apiRequest("POST", "/api/v1/testConfigs", params);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `creating test config '${params.name}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/testConfigs/data/{testName}
+// Archive autotest with a new test name
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_archive_test_config", {
+    title: "Archive Test Config Data",
+    description: "Archive an autotest under a new test name. " +
+        "PUT /api/v1/testConfigs/data/{testName}. " +
+        "Pass the existing testName in the path and a full or partial TestConfig body to update.",
+    inputSchema: z.object({
+        testName: z.string().describe("The name of the existing testConfig to archive (path param)."),
+        name: z.string().describe("Unique name for the testConfig (required by the TestConfig schema)."),
+        model: z.string().optional().describe("User-provided model field."),
+        revision: z.string().optional().describe("User-defined revision field."),
+        description: z.string().optional().describe("User-defined description."),
+        rvrMode: z.enum(["Static", "RvR", "RvRvO", "RvOvR", "RvRwR"]).optional()
+            .describe("RvR mode."),
+        stepDuration: z.number().int().min(1).optional()
+            .describe("Duration per attenuation step in seconds (min: 1)."),
+        trainingInterval: z.number().int().min(0).optional()
+            .describe("Training duration before each step."),
+        step: z.number().min(1).max(90).optional()
+            .describe("Attenuation change per step, 1–90 in 0.5 dB increments."),
+        synchroSnifferCapturing: z.boolean().optional()
+            .describe("Enable synchroSniffer capturing."),
+        externalDataInterfaceEnable: z.string().optional()
+            .describe("Enable external data interface."),
+        wiresharkHost: z.string().optional()
+            .describe("IP address hosting Wireshark."),
+        quadAttens: z.array(z.record(z.unknown())).optional()
+            .describe("QuadAtten settings array."),
+        virtualAttens: z.array(z.record(z.unknown())).optional()
+            .describe("Virtual QuadAtten settings array."),
+        mpes: z.array(z.record(z.unknown())).optional()
+            .describe("MPE settings array."),
+        virtualMpes: z.array(z.record(z.unknown())).optional()
+            .describe("Virtual MPE settings array."),
+        pal6s: z.array(z.record(z.unknown())).optional()
+            .describe("Pal6 configuration settings array."),
+        pal7s: z.array(z.record(z.unknown())).optional()
+            .describe("Pal7 configuration settings array."),
+        staPals: z.array(z.record(z.unknown())).optional()
+            .describe("STAPal configuration settings array."),
+        staPal7s: z.array(z.record(z.unknown())).optional()
+            .describe("STAPal7 configuration settings array."),
+        trafficPairs: z.array(z.record(z.unknown())).optional()
+            .describe("TrafficPair settings array."),
+        synchroSniffers: z.array(z.record(z.unknown())).optional()
+            .describe("synchroSniffer settings array."),
+        snifferDisplay: z.array(z.record(z.unknown())).optional()
+            .describe("snifferDisplay settings array."),
+        turntables: z.array(z.record(z.unknown())).optional()
+            .describe("Turntable settings array."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    const { testName, ...body } = params;
+    try {
+        const data = await apiRequest("PUT", `/api/v1/testConfigs/data/${encodeURIComponent(testName)}`, body);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `archiving test config data for '${testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/testConfigs
+// List all TestConfigs
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_list_test_configs", {
+    title: "List Test Configs",
+    description: "Get all testConfig records. " +
+        "GET /api/v1/testConfigs. " +
+        "Set namesOnly=true to return only name, model, revision, description, and _id.",
+    inputSchema: z.object({
+        namesOnly: z
+            .boolean()
+            .optional()
+            .describe("When true, returns only name, model, revision, description, and _id fields."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const url = new URL(`${OCTOBOX_BASE_URL}/api/v1/testConfigs`);
+        if (params.namesOnly)
+            url.searchParams.set("namesOnly", "true");
+        const response = await fetch(url.toString(), { headers: { "Content-Type": "application/json" } });
+        if (!response.ok) {
+            const text = await response.text().catch(() => "(no body)");
+            throw new Error(`octoScope API error ${response.status} ${response.statusText}: ${text}`);
+        }
+        const data = await response.json();
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, "listing test configs");
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/testConfigs/{testName}
+// Get a specific TestConfig by name
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_get_test_config", {
+    title: "Get Test Config by Name",
+    description: "Get a specific testConfig record by name. " +
+        "GET /api/v1/testConfigs/{testName}.",
+    inputSchema: z.object({
+        testName: z.string().describe("The name of the testConfig to retrieve."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("GET", `/api/v1/testConfigs/${encodeURIComponent(params.testName)}`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `fetching test config '${params.testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/testConfigs/{testName}
+// Update a TestConfig in place (distinct from archive/PUT /data/{testName})
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_update_test_config", {
+    title: "Update Test Config",
+    description: "Update a specified testConfig in place by testName. " +
+        "PUT /api/v1/testConfigs/{testName}. " +
+        "Unlike octobox_archive_test_config (PUT /data/{testName}), this updates the existing record directly.",
+    inputSchema: z.object({
+        testName: z.string().describe("The name of the existing testConfig to update (path param)."),
+        name: z.string().describe("Unique name for the testConfig (required by schema)."),
+        model: z.string().optional().describe("User-provided model field."),
+        revision: z.string().optional().describe("User-defined revision field."),
+        description: z.string().optional().describe("User-defined description."),
+        rvrMode: z.enum(["Static", "RvR", "RvRvO", "RvOvR", "RvRwR"]).optional()
+            .describe("RvR mode."),
+        stepDuration: z.number().int().min(1).optional()
+            .describe("Duration per attenuation step in seconds (min: 1)."),
+        trainingInterval: z.number().int().min(0).optional()
+            .describe("Training duration before each step."),
+        step: z.number().min(1).max(90).optional()
+            .describe("Attenuation change per step, 1–90 in 0.5 dB increments."),
+        synchroSnifferCapturing: z.boolean().optional()
+            .describe("Enable synchroSniffer capturing."),
+        externalDataInterfaceEnable: z.string().optional()
+            .describe("Enable external data interface."),
+        wiresharkHost: z.string().optional()
+            .describe("IP address hosting Wireshark (e.g. '172.16.22.4')."),
+        quadAttens: z.array(z.record(z.unknown())).optional()
+            .describe("QuadAtten settings array."),
+        virtualAttens: z.array(z.record(z.unknown())).optional()
+            .describe("Virtual QuadAtten settings array."),
+        mpes: z.array(z.record(z.unknown())).optional()
+            .describe("MPE settings array."),
+        virtualMpes: z.array(z.record(z.unknown())).optional()
+            .describe("Virtual MPE settings array."),
+        pal6s: z.array(z.record(z.unknown())).optional()
+            .describe("Pal6 configuration settings array."),
+        pal7s: z.array(z.record(z.unknown())).optional()
+            .describe("Pal7 configuration settings array."),
+        staPals: z.array(z.record(z.unknown())).optional()
+            .describe("STAPal configuration settings array."),
+        staPal7s: z.array(z.record(z.unknown())).optional()
+            .describe("STAPal7 configuration settings array."),
+        trafficPairs: z.array(z.record(z.unknown())).optional()
+            .describe("TrafficPair settings array."),
+        synchroSniffers: z.array(z.record(z.unknown())).optional()
+            .describe("synchroSniffer settings array."),
+        snifferDisplay: z.array(z.record(z.unknown())).optional()
+            .describe("snifferDisplay settings array."),
+        turntables: z.array(z.record(z.unknown())).optional()
+            .describe("Turntable settings array."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    const { testName, ...body } = params;
+    try {
+        const data = await apiRequest("PUT", `/api/v1/testConfigs/${encodeURIComponent(testName)}`, body);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `updating test config '${testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/v1/testConfigs/{testName}
+// Delete a specific TestConfig by name
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_delete_test_config", {
+    title: "Delete Test Config",
+    description: "Delete a specified testConfig by testName. " +
+        "DELETE /api/v1/testConfigs/{testName}.",
+    inputSchema: z.object({
+        testName: z.string().describe("The name of the testConfig to delete."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await apiRequest("DELETE", `/api/v1/testConfigs/${encodeURIComponent(params.testName)}`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `deleting test config '${params.testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/v1/testConfigs
+// Delete ALL TestConfigs and associated data
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_delete_all_test_configs", {
+    title: "Delete All Test Configs",
+    description: "Delete all testConfig records and their associated data. " +
+        "DELETE /api/v1/testConfigs. WARNING: this is irreversible.",
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+}, async () => {
+    try {
+        const data = await apiRequest("DELETE", "/api/v1/testConfigs");
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, "deleting all test configs");
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/testConfigs/eventLog/{testName}
+// Get event log for a TestConfig
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_get_test_config_event_log", {
+    title: "Get Test Config Event Log",
+    description: "Get event logs for a specified testConfig by testName. " +
+        "GET /api/v1/testConfigs/eventLog/{testName}.",
+    inputSchema: z.object({
+        testName: z.string().describe("The name of the testConfig to retrieve event logs for."),
+    }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("GET", `/api/v1/testConfigs/eventLog/${encodeURIComponent(params.testName)}`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `fetching event log for test config '${params.testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/autotest/start/{testName}
+// Start an autotest by name
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_autotest_start", {
+    title: "Start Autotest",
+    description: "Start an autotest by name. " +
+        "POST /api/v1/autotest/start/{testName}. " +
+        "Optionally push pal/staPal configurations from the test config before starting.",
+    inputSchema: z.object({
+        testName: z
+            .string()
+            .describe("The name of the test config to start."),
+        pushConfigs: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Whether to push the pal/staPal configurations in the test config before starting (default: true)."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const { testName, ...body } = params;
+        const data = await apiRequest("POST", `/api/v1/autotest/start/${encodeURIComponent(testName)}`, body);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `starting autotest '${params.testName}'`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/v1/autotest/stop/{testName}
+// Stop any active autotest by name
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_autotest_stop", {
+    title: "Stop Autotest",
+    description: "Stop any active autotest by name. " +
+        "POST /api/v1/autotest/stop/{testName}.",
+    inputSchema: z.object({
+        testName: z
+            .string()
+            .describe("The name of the test config to stop."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await apiRequest("POST", `/api/v1/autotest/stop/${encodeURIComponent(params.testName)}`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `stopping autotest '${params.testName}'`);
+    }
+});
+//HIDDEN APIs TO CONTROL THE DASHBOARD.
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/dashboardTraffic/set/started
+// Start the traffic on the dashboard.  
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_dashboard_traffic_start", {
+    title: "Start Traffic on the Dashboard",
+    description: "Start Traffic on the Octobox Dashboard. " +
+        "PUT /api/v1/dashboardTraffic/set/started. " +
+        "No parameters.",
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("PUT", `/api/v1/dashboardTraffic/set/started`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `starting the traffic on the dashboard`);
+    }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/v1/dashboardTraffic/set/stopped
+// Stop the traffic on the dashboard.  
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("octobox_dashboard_traffic_stop", {
+    title: "Stop Traffic on the Dashboard",
+    description: "Stop Traffic on the Octobox Dashboard. " +
+        "PUT /api/v1/dashboardTraffic/set/stopped. " +
+        "No parameters.",
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+}, async (params) => {
+    try {
+        const data = await apiRequest("PUT", `/api/v1/dashboardTraffic/set/stopped`);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `stopping the traffic on the dashboard`);
+    }
+});
+// ── Python bridge (sd2Utils) ──────────────────────────────────────────────────
+const BRIDGE_PATH = resolve(process.env.SD2_BRIDGE_PATH ?? "./bridge.py");
+function callSd2Utils(funcName, args) {
+    return new Promise((resolve, reject) => {
+        //const jsonArgs = args.map((a) => JSON.stringify(a));
+        const jsonArgs = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a)));
+        execFile("/home/lchinitz/Documents/stardust_socket-26.1.1-1-py3-none-any/test/bin/python3", // BECAUSE OF THE venv NEEDED TO INSTALL STARDUST SOCKET
+        [BRIDGE_PATH, funcName, ...jsonArgs], { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
+            console.error("=== DEBUG ===");
+            console.error("ARGS:", jsonArgs);
+            console.error("ERR:", err);
+            console.error("STDOUT:", stdout);
+            console.error("STDERR:", stderr);
+            console.error("=============");
+            if (err) {
+                // bridge.py exits with code 1 and prints JSON with an "error" key
+                try {
+                    const parsed = JSON.parse(stdout.trim());
+                    reject(new Error(parsed.error ?? stderr ?? err.message));
+                }
+                catch {
+                    reject(new Error(stderr || err.message));
+                }
+                return;
+            }
+            try {
+                resolve(JSON.parse(stdout.trim()));
+            }
+            catch {
+                resolve(stdout.trim()); // return raw string if not JSON
+            }
+        });
+    });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// sd2Utils.waitForAssociation
+// Polls a PAL radio until it associates (or times out).
+// ─────────────────────────────────────────────────────────────────────────────
+server.registerTool("sd2_wait_for_association", {
+    title: "Wait For Association",
+    description: "Poll a PAL radio until it associates with an AP, or until timeToWait seconds elapse. " +
+        "Wraps sd2Utils.waitForAssociation(palName, targetRadio, timeToWait, quitOnFail, vstasRequired, meshinfoKey). " +
+        "Returns {status: 'success', online: true} on success. " +
+        "Returns a failure dict (or exits the process if quitOnFail is true and the call is made from a script context).",
+    inputSchema: z.object({
+        palName: z
+            .string()
+            .describe("Name of the PAL device as it appears in paramsDict (e.g. 'palA')."),
+        targetRadio: z
+            .string()
+            .describe("Radio interface to watch (e.g. 'RADIO_2', 'RADIO_5', 'RADIO_5A', 'RADIO_5B', 'RADIO_6')."),
+        timeToWait: z
+            .number()
+            .int()
+            .default(30)
+            .describe("Maximum seconds to wait for association (default: 30). 6 GHz typically needs ~40 s."),
+        quitOnFail: z
+            .boolean()
+            .default(true)
+            .describe("If true, the Python process calls sys.exit(1) on timeout or error. Set false to get a failure dict returned instead."),
+        vstasRequired: z
+            .number()
+            .int()
+            .optional()
+            .describe("Number of vSTAs that must associate before success is declared. Omit (null) for a regular STA."),
+        meshinfoKey: z
+            .string()
+            .optional()
+            .describe("Key into meshinfo.json for channel-change tracking (e.g. 'extender1_5A'). Omit if not needed."),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}, async (params) => {
+    try {
+        const data = await callSd2Utils("waitForAssociation", [
+            params.palName,
+            params.targetRadio,
+            params.timeToWait,
+            params.quitOnFail,
+            params.vstasRequired,
+            params.meshinfoKey,
+        ]);
+        return ok(data);
+    }
+    catch (err) {
+        return fail(err, `waitForAssociation(${params.palName}, ${params.targetRadio})`);
     }
 });
 // ── Transport ─────────────────────────────────────────────────────────────────

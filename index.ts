@@ -2097,7 +2097,7 @@ function callSd2Utils(funcName: string, args: unknown[]): Promise<unknown> {
     //const jsonArgs = args.map((a) => JSON.stringify(a));
     const jsonArgs = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a)));    
     execFile(
-      "/home/lchinitz/Documents/stardust_socket-26.1.1-1-py3-none-any/test/bin/python3",  // BECAUSE OF THE venv NEEDED TO INSTALL STARDUST SOCKET
+      "/home/lchinitz/Documents/venvMCP/bin/python3",  // BECAUSE OF THE venv NEEDED TO INSTALL STARDUST SOCKET
       [BRIDGE_PATH, funcName, ...jsonArgs],
       { maxBuffer: 1024 * 1024 * 10 },
       (err, stdout, stderr) => {

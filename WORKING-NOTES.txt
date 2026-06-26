@@ -8,3 +8,27 @@
 * On new laptop, find claude_desktop_config in C:\Users\leigchin\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude
      And the index.js should be copied to C://Users/leigchin/Documents/Codes/octoscope-mcs-server/
      Direct copy:  cp index.js  /mnt/c/Users/leigchin/Documents/Codes/octoscope-mcp-server/
+
+
+NEW MACHINE INSTALL.
+> A few things to know.
+
+  1. The claude_desktop_config.json file is in C:\Users\leigchin\AppData\Roaming\Claude
+  2. At the top of that file, here are the required MCP settings.
+       "mcpServers": {
+           "octobox": {
+      	       "command": "wsl.exe",
+      	       "args": [
+                   "bash",
+        	   "-c",
+        	   "cd /home/lchinitz/Documents/octoscope-mcp-server && source /home/lchinitz/Documents/venvMCP/bin/activate && OCTOBOX_BASE_URL=http://10.160.81.80:4000 SD2_BRIDGE_PATH=/home/lchinitz/Documents/octoscope-mcp-server/bridge.py /home/lchinitz/.nvm/versions/node/v24.16.0/bin/node /home/lchinitz/Documents/octoscope-mcp-server/index.js"
+      	       ]
+            }
+         },
+  3. Note the there is a virtual python environment, needed to install some stuff that this machine won't allow.  Now in /home/lchinitz/Documents/venvMCP
+  4. venv is created with python3 -m venv venvMCP/
+  5. Activated with source /home/lchinitz/Documents/venvMCP/bin/activate
+  6. All the stuff installed with  pip3 install python-socketio websocket-client requests packaging
+  7. On any new install, make sure you npm install in the /octoscope-mcp-server/ directory.
+
+  

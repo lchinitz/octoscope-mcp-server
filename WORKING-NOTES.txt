@@ -32,3 +32,19 @@ NEW MACHINE INSTALL.
   7. On any new install, make sure you npm install in the /octoscope-mcp-server/ directory.
 
   
+
+
+*****************
+BREAKING UP THE MCP SERVER FILES.
+/home/lchinitz/Documents/octoscope-mcp-server/
+├── index.js          ← replaces your old one
+├── utils.js          ← new
+└── tools/
+    ├── attenuators.js
+    ├── staPal7.js
+    ├── pal7.js
+    ├── trafficPairs.js
+    ├── testConfigs.js
+    ├── dashboard.js
+    ├── testbed.js
+    └── sd2.js
